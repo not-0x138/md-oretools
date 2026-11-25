@@ -8,6 +8,11 @@ updates:
       time: "09:00"
       timezone: Asia/Tokyo
     open-pull-requests-limit: 5
+    # Node.js 24 LTS（.nvmrc）と型定義の整合を保つため、@types/node のメジャー更新は除外する
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
     groups:
       dev-dependencies:
         dependency-type: development

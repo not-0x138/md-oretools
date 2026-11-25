@@ -40,12 +40,12 @@
 
 ## 3. 開発ロードマップ（ボトムアップ型）
 
-### Phase 0: 足場づくり・品質基盤構築（進行中）
+### Phase 0: 足場づくり・品質基盤構築（完了）
 
-- リポジトリ初期化（`md-oretools` / Public リポジトリ ＋ Cloudflare Pages 配信前提）
-- `AGENTS.md` / `docs/spec.md` / `docs/architecture.md` / `README.md` / `.gitignore` / `.gitattributes` / `.editorconfig` 整備
+- リポジトリ初期化（`md-oretools` / Public リポジトリ ＋ Cloudflare Pages 本番・PR プレビュー配信開通）
+- `AGENTS.md`（GitHub Flow・t-wada 4原則含む） / `docs/spec.md` / `docs/architecture.md` / `README.md` / `.github/pull_request_template.md` / `.agents/skills/add-feature/SKILL.md` 整備
 - Vite + React + TypeScript（厳格設定）+ Tailwind CSS + shadcn/ui セットアップ
-- 品質ゲート基盤（`npm` + `Biome` + `Vitest` + `Zod` + `lefthook` + GitHub Actions CI + Dependabot）構築
+- 品質ゲート基盤（`npm` + `Biome` + `Vitest` + `Zod` + `lefthook` + GitHub Actions CI + SonarQube Cloud + Dependabot + `main` ブランチ保護 Ruleset）構築・疎通確認完了
 
 ### Phase 1: ポータル土台 ＋ 手札確率シミュレータ ＋ 誘発カンペ辞書
 
