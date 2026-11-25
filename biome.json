@@ -1,0 +1,122 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.9/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/features/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/features/*", "@/features/**"],
+                    "message": "features 間の直接参照は禁止です。連携は src/app/ または src/shared/ 経由で行ってください。"
+                  },
+                  {
+                    "group": ["@/app/*", "@/app/**"],
+                    "message": "features から src/app/ への逆参照は禁止です。"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/features/*/domain/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": "domain 層は React に依存しない純粋関数として実装してください。",
+                  "react-dom": "domain 層は React DOM に依存しない純粋関数として実装してください。"
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "@/features/*",
+                      "@/features/**",
+                      "@/app/*",
+                      "@/app/**",
+                      "@/components/**"
+                    ],
+                    "message": "domain 層から他 feature / app / UI コンポーネントへの参照は禁止です。"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/shared/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/features/*",
+                      "@/features/**",
+                      "@/app/*",
+                      "@/app/**"
+                    ],
+                    "message": "shared 層から features / app への参照は禁止です。"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

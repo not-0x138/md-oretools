@@ -6,11 +6,20 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Dependencies
+# Dependencies & Build
 node_modules
 dist
 dist-ssr
+coverage
 *.local
+
+# Cloudflare / Wrangler
+.wrangler
+.dev.vars
+
+# 個人データ・バックアップ流出防止
+*backup*.json
+*.md-oretools.json
 
 # Editor / IDE
 .vscode/*
