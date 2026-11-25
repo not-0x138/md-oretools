@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { SAMPLE_SIMULATOR_TEMPLATES } from "./defaultPresets";
 import {
   calculateHandProbability,
   createCalculationKey,
   extractSimulatorConfig,
   validateSimulatorConfig,
 } from "./probability";
-import { type SimulatorConfig, simulatorPresetSchema } from "./types";
+import {
+  type SimulatorConfig,
+  simulatorConfigSchema,
+  simulatorPresetSchema,
+} from "./types";
 
 describe("validateSimulatorConfig", () => {
   it("正常なデッキ設定（40枚・初手5枚・グループ合計40枚以下）を有効と判定する", () => {
@@ -419,5 +424,15 @@ describe("extractSimulatorConfig と createCalculationKey", () => {
 
     const extracted = extractSimulatorConfig(a);
     expect(extracted).toEqual(a);
+  });
+
+  it("同梱されているサンプルテンプレート全件が Zod スキーマと画面検証を満たす", () => {
+    expect(SAMPLE_SIMULATOR_TEMPLATES.length).toBeGreaterThan(0);
+    for (const template of SAMPLE_SIMULATOR_TEMPLATES) {
+      expect(simulatorConfigSchema.safeParse(template.config).success).toBe(
+        true,
+      );
+      expect(validateSimulatorConfig(template.config).valid).toBe(true);
+    }
   });
 });
