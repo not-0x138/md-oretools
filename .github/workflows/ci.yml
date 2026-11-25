@@ -23,6 +23,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # SonarQube Cloud の正確な差分解析・blame 取得のためフル履歴を取得
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -31,7 +34,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Biome CI (Lint & Format)
         run: npm run check:ci
@@ -39,11 +42,29 @@ jobs:
       - name: TypeScript typecheck
         run: npm run typecheck
 
-      - name: Unit tests (Vitest)
-        run: npm test
+      - name: Unit tests with coverage (Vitest)
+        run: npm run test:coverage
 
       - name: Production build
         run: npm run build:only
 
       - name: Dependency security audit
         run: npm audit --audit-level=high
+
+      - name: Check SonarQube Cloud configuration
+        id: sonar-check
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "SONAR_TOKEN is not set. Skipping SonarQube Cloud scan."
+          fi
+
+      - name: SonarQube Cloud Scan
+        if: steps.sonar-check.outputs.enabled == 'true'
+        uses: SonarSource/sonarqube-scan-action@70bad232163b09d998ea0707ee80c0ec80798c16 # v8.5.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
