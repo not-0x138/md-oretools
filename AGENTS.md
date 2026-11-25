@@ -129,9 +129,36 @@ src/
 
 ---
 
-## コーディング・ドキュメント規約
+## ブランチ戦略（GitHub Flow）
 
-- UI文言、コメント、ドキュメント、コミットメッセージは**日本語**で記述する。
-- 文字コードは **BOMなし UTF-8**、改行コードは **LF (`\n`)** を徹底する（`.gitattributes` / `.editorconfig` で強制）。
-- コミット前に `npm run check`（Biome check）・`npm run typecheck`（`tsc -b --noEmit`）・`npm test` が通る状態を保つ（`lefthook` が `pre-commit` / `pre-push` で自動検証する）。
-- 仕様変更や新しいフェーズに入る際は、[docs/spec.md](docs/spec.md) および [docs/architecture.md](docs/architecture.md) を最新の状態に保つ。
+- 常設ブランチは **`main` のみ** とし、常にデプロイ可能な状態を保つ。
+- 作業単位で短命ブランチを作成する（例: `feat/hand-simulator`, `fix/dark-theme`, `chore/sonar-ci`, `docs/update-spec`, `refactor/backup-schema`, `test/simulator-edge-cases`）。
+- 変更は必ず Pull Request を経由し、GitHub Actions CI・SonarQube Cloud Quality Gate・Cloudflare Pages プレビューの確認後に **Squash and merge** で `main` に取り込む。
+- Phase 完了などの節目のみ `main` にセマンティックバージョンのタグ（例: `v0.1.0`）を付与する。
+
+---
+
+## 開発・テスト思想とコーディング規約
+
+### 1. 情報配置の原則（t-wada 氏の思想）
+
+本プロジェクトでは、テスト駆動開発およびソフトウェア設計の原則として以下を徹底する。
+
+> **コードには How、テストコードには What、コミットログには Why、コードコメントには Why not**
+
+- **コード（How）**: 意図が伝わる命名と小さく責務分離された関数で「どう動作するか」を直接表現する。コードを読めばわかる処理の言い換えコメントは書かない。
+- **テストコード（What）**: テストを「生きた仕様書」として位置づけ、「システムが何を満たすべきか（期待する振る舞い）」を日本語のテスト名と AAA（Arrange / Act / Assert）構造で明快に記述する。実装の内部詳細ではなく公開インターフェースの振る舞いを検証し、ドメインロジックは **Red → Green → Refactor（テストファースト）** を基本とする。
+- **コミットログ（Why）**: なぜその変更が必要だったか（背景・目的・判断理由）を残す。件名は軽量 Conventional Commits（`feat:` / `fix:` / `refactor:` / `test:` / `docs:` / `chore:`）＋ 日本語要約とする。
+- **コードコメント（Why not）**: 「なぜ一見自然に見える別の実装を選ばなかったのか」「ブラウザ仕様やライブラリ制約による回避策の根拠」「トレードオフ」など、コード単体からは読み取れない否定の理由・制約を記す。
+
+### 2. 命名・型・ファイル規約
+
+- **言語**: UI 文言、コメント、ドキュメント、テスト記述、コミットメッセージは**日本語**で記述する。
+- **文字コード・改行**: **BOM なし UTF-8**、改行コードは **LF (`\n`)** を徹底する（`.gitattributes` / `.editorconfig` で強制）。
+- **命名規則**:
+  - React コンポーネント: `PascalCase.tsx`（`src/components/ui/` 配下の shadcn/ui 生成物のみ `kebab-case.tsx` を維持）
+  - ドメインロジック / Hooks / ユーティリティ: `camelCase.ts`
+  - テストファイル: 対象ファイルと同階層の `*.test.ts` / `*.test.tsx`
+- **型安全性**: `any` および根拠のない型アサーション（`as`）は原則禁止。外部入力（JSON インポート・ストレージ読み込み・OCR 結果等）は必ず Zod スキーマでパース・検証する。
+- **品質ゲート**: コミット前に `npm run check`（Biome check）・`npm run typecheck`（`tsc -b --noEmit`）・`npm test` が通る状態を保つ（`lefthook` が `pre-commit` / `pre-push` で自動検証する）。
+- **ドキュメント同期**: 仕様変更や新しいフェーズに入る際は、[docs/spec.md](docs/spec.md) および [docs/architecture.md](docs/architecture.md) を最新の状態に保つ。
