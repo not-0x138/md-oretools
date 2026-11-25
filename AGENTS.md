@@ -162,3 +162,8 @@ src/
 - **型安全性**: `any` および根拠のない型アサーション（`as`）は原則禁止。外部入力（JSON インポート・ストレージ読み込み・OCR 結果等）は必ず Zod スキーマでパース・検証する。
 - **品質ゲート**: コミット前に `npm run check`（Biome check）・`npm run typecheck`（`tsc -b --noEmit`）・`npm test` が通る状態を保つ（`lefthook` が `pre-commit` / `pre-push` で自動検証する）。
 - **ドキュメント同期**: 仕様変更や新しいフェーズに入る際は、[docs/spec.md](docs/spec.md) および [docs/architecture.md](docs/architecture.md) を最新の状態に保つ。
+
+### 3. UI ライティング・UX 規約（開発者用語の禁止）
+
+- 画面に表示する文言（ラベル・説明文・バッジ・エラーメッセージ）には、**開発者向け用語（`IndexedDB`・`DNF`・`多変量超幾何`・`Zod`・`ROI`・`OCR`・`getDisplayMedia` 等）をそのまま出さず**、プレイヤーが直感的に理解できる日本語表現を用いる。
+- 具体的な NG → OK の言い換え辞書と UI/UX チェックリスト（数値入力ホイール対策・IME 確定 Enter 対策・破壊的操作の確認等）は [.agents/rules/ui-copywriting.md](.agents/rules/ui-copywriting.md) を正として参照・更新すること。

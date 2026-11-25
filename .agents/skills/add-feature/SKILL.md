@@ -55,6 +55,7 @@ src/features/<feature-name>/
 1. UI 部品は `src/components/ui/` の shadcn/ui コンポーネントと Tailwind CSS（ダークモード基調）を組み合わせて構築する。
 2. 必要な shadcn/ui 部品が未導入なら `npx shadcn@latest add <component>` で追加する。
 3. コンポーネントは表示とユーザーイベントの配線に専念し、計算・集計・バリデーションは必ず `domain/` に委譲する。
+4. UI 文言・操作感は `.agents/rules/ui-copywriting.md`（NG→OK 用語辞書・数値入力ホイール対策・IME 確定 Enter 対策・破壊的操作確認）を遵守し、開発者向け用語を画面に出さないこと。
 
 ### Step C: `src/app/` への配線
 
