@@ -156,7 +156,7 @@ export function BackupDialog({
       setPendingBackup(null);
       setPendingFileName("");
       setMessage(
-        `バックアップから復元しました（確率計算 ${imported.simulatorPresets}件 / カンペ ${imported.cheatSheetOverrides}件 / デッキ ${imported.playerDecks}件 / 戦績 ${imported.duelRecords}件）。`,
+        `バックアップから復元しました（確率計算 ${imported.simulatorPresets}件 / カンペ ${imported.cheatSheetOverrides}件 / デッキ ${imported.playerDecks}件 / 戦績 ${imported.duelRecords}件 / 読取設定 ${imported.captureSettings}件）。`,
       );
       onRestored();
     } catch {
@@ -186,7 +186,7 @@ export function BackupDialog({
               データのバックアップ・復元
             </CardTitle>
             <CardDescription>
-              確率計算のプリセット・誘発カンペ・自分のデッキ・対戦ログをまとめて
+              確率計算のプリセット・誘発カンペ・自分のデッキ・対戦ログ・画面読み取り設定をまとめて
               1 つのファイル（JSON）に保存・復元できます。
             </CardDescription>
           </div>
@@ -243,7 +243,7 @@ export function BackupDialog({
                 現在の保存件数：確率計算 {currentCounts.simulatorPresets}件 /
                 誘発カンペ {currentCounts.cheatSheetOverrides}件 / デッキ{" "}
                 {currentCounts.playerDecks}件 / 戦績 {currentCounts.duelRecords}
-                件
+                件 / 読取設定 {currentCounts.captureSettings}件
               </p>
             )}
             <Button

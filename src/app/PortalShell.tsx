@@ -62,7 +62,7 @@ export const PORTAL_NAV_ITEMS: readonly NavItem[] = [
     label: "画面読み取り",
     shortLabel: "画面読取",
     phase: "Phase 3",
-    available: false,
+    available: true,
     icon: MonitorSmartphone,
   },
   {
@@ -70,7 +70,7 @@ export const PORTAL_NAV_ITEMS: readonly NavItem[] = [
     label: "デュエル画面",
     shortLabel: "デュエル",
     phase: "Phase 3",
-    available: false,
+    available: true,
     icon: Columns2,
   },
 ];
@@ -326,7 +326,12 @@ export function PortalShell({
           </div>
         )}
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main
+          className={cn(
+            "mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-8",
+            activeTool === "duel-mode" ? "max-w-[1600px]" : "max-w-6xl",
+          )}
+        >
           {children}
         </main>
       </div>

@@ -4,6 +4,10 @@ import {
   cheatSheetEntrySchema,
 } from "@/features/cheat-sheet";
 import {
+  type CaptureSettings,
+  captureSettingsSchema,
+} from "@/features/screen-capture";
+import {
   type SimulatorPreset,
   simulatorPresetSchema,
 } from "@/features/simulator";
@@ -29,6 +33,7 @@ export const appBackupPayloadSchema = z.object({
   cheatSheetOverrides: z.array(cheatSheetEntrySchema).default([]),
   playerDecks: z.array(playerDeckSchema).default([]),
   duelRecords: z.array(duelRecordSchema).default([]),
+  captureSettings: z.array(captureSettingsSchema).default([]),
 });
 export type AppBackupPayload = z.infer<typeof appBackupPayloadSchema>;
 
@@ -42,6 +47,7 @@ export interface BackupCounts {
   cheatSheetOverrides: number;
   playerDecks: number;
   duelRecords: number;
+  captureSettings: number;
 }
 
 export type ParseBackupResult =
@@ -53,6 +59,7 @@ export interface AppBackupTables {
   cheatSheetOverrides: StoredRecordTable;
   playerDecks: StoredRecordTable;
   duelRecords: StoredRecordTable;
+  captureSettings: StoredRecordTable;
 }
 
 function getDefaultTables(): AppBackupTables {
@@ -61,6 +68,7 @@ function getDefaultTables(): AppBackupTables {
     cheatSheetOverrides: db.cheatSheetOverrides,
     playerDecks: db.playerDecks,
     duelRecords: db.duelRecords,
+    captureSettings: db.captureSettings,
   };
 }
 
@@ -87,6 +95,7 @@ export function countBackupItems(data: AppBackupPayload): BackupCounts {
     cheatSheetOverrides: data.cheatSheetOverrides.length,
     playerDecks: data.playerDecks.length,
     duelRecords: data.duelRecords.length,
+    captureSettings: data.captureSettings.length,
   };
 }
 
@@ -148,13 +157,19 @@ export async function exportAllAppData(
     tables.duelRecords,
     duelRecordSchema,
   );
+  const captureRepo = createValidatedRepository<CaptureSettings>(
+    tables.captureSettings,
+    captureSettingsSchema,
+  );
 
-  const [presets, overrides, decks, records] = await Promise.all([
-    presetRepo.list(),
-    cheatRepo.list(),
-    deckRepo.list(),
-    recordRepo.list(),
-  ]);
+  const [presets, overrides, decks, records, captureSettings] =
+    await Promise.all([
+      presetRepo.list(),
+      cheatRepo.list(),
+      deckRepo.list(),
+      recordRepo.list(),
+      captureRepo.list(),
+    ]);
 
   return buildAppBackup(
     {
@@ -162,6 +177,7 @@ export async function exportAllAppData(
       cheatSheetOverrides: overrides.items,
       playerDecks: decks.items,
       duelRecords: records.items,
+      captureSettings: captureSettings.items,
     },
     now,
   );
@@ -190,6 +206,10 @@ export async function importAppData(
     tables.duelRecords,
     duelRecordSchema,
   );
+  const captureRepo = createValidatedRepository<CaptureSettings>(
+    tables.captureSettings,
+    captureSettingsSchema,
+  );
 
   if (mode === "replace") {
     await Promise.all([
@@ -197,6 +217,7 @@ export async function importAppData(
       cheatRepo.clear(),
       deckRepo.clear(),
       recordRepo.clear(),
+      captureRepo.clear(),
     ]);
   }
 
@@ -211,6 +232,9 @@ export async function importAppData(
   }
   for (const item of validated.data.duelRecords) {
     await recordRepo.save(item);
+  }
+  for (const item of validated.data.captureSettings) {
+    await captureRepo.save(item);
   }
 
   return countBackupItems(validated.data);

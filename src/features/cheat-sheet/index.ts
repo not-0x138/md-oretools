@@ -5,3 +5,4 @@ export {
   cheatSheetEntrySchema,
   type ResolvedCheatSheetEntry,
 } from "./domain/types";
+export { useCheatSheetDictionary } from "./hooks/useCheatSheetDictionary";
