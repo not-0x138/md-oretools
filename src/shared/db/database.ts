@@ -20,6 +20,8 @@ type DatabaseNoticeListener = (notice: DatabaseNoticeType) => void;
 export class MdOretoolsDatabase extends Dexie {
   simulatorPresets!: EntityTable<StoredRecord, "id">;
   cheatSheetOverrides!: EntityTable<StoredRecord, "id">;
+  playerDecks!: EntityTable<StoredRecord, "id">;
+  duelRecords!: EntityTable<StoredRecord, "id">;
 
   private readonly noticeListeners = new Set<DatabaseNoticeListener>();
 
@@ -29,6 +31,13 @@ export class MdOretoolsDatabase extends Dexie {
     this.version(1).stores({
       simulatorPresets: "id, updatedAt",
       cheatSheetOverrides: "id, updatedAt",
+    });
+
+    this.version(2).stores({
+      simulatorPresets: "id, updatedAt",
+      cheatSheetOverrides: "id, updatedAt",
+      playerDecks: "id, updatedAt",
+      duelRecords: "id, updatedAt",
     });
 
     // 複数タブ同時起動時に他タブでスキーマバージョンが上がった場合、
