@@ -16,8 +16,18 @@ export function detectCoinFlipFromText(raw: string): CoinFlipValue | null {
   if (!text) {
     return null;
   }
-  const hasHeads = text.includes("表") || text.includes("HEADS");
-  const hasTails = text.includes("裏") || text.includes("TAILS");
+  // 実機UIではコインの表裏テキスト自体は表示されず、表なら「先攻・後攻を選択してください」、
+  // 裏なら「対戦相手が先攻・後攻を選択しています」のメッセージ帯が表示される。
+  const hasHeads =
+    text.includes("選択してください") ||
+    text.includes("表") ||
+    text.includes("HEADS");
+  const hasTails =
+    (text.includes("対戦相手") && text.includes("選択")) ||
+    text.includes("選択中") ||
+    text.includes("選択しています") ||
+    text.includes("裏") ||
+    text.includes("TAILS");
 
   if (hasHeads && !hasTails) {
     return "heads";
@@ -33,6 +43,16 @@ export function detectTurnOrderFromText(raw: string): TurnOrderValue | null {
   if (!text) {
     return null;
   }
+  // コイントス直後の「先攻・後攻を選択してください」画面は、片方の文字が読み取り欠損しても
+  // 先攻・後攻の確定と誤認しないよう除外する。
+  if (
+    text.includes("選択してください") ||
+    text.includes("選択しています") ||
+    text.includes("選択中")
+  ) {
+    return null;
+  }
+
   const hasFirst =
     text.includes("先攻") || text.includes("先行") || text.includes("FIRST");
   const hasSecond = text.includes("後攻") || text.includes("SECOND");

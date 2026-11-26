@@ -50,6 +50,18 @@ export type ReaderStatus = "idle" | "loading" | "ready" | "error";
 
 const MAX_LOG_ENTRIES = 25;
 const ROI_UPSCALE_FACTOR = 2;
+const OCR_PADDING_PX = 24;
+const BRIGHT_TEXT_LO = 165;
+const BRIGHT_TEXT_HI = 235;
+
+function isSameRoi(a: RoiRect, b: RoiRect): boolean {
+  return (
+    Math.abs(a.x - b.x) < 0.0005 &&
+    Math.abs(a.y - b.y) < 0.0005 &&
+    Math.abs(a.width - b.width) < 0.0005 &&
+    Math.abs(a.height - b.height) < 0.0005
+  );
+}
 
 function cropAndPreprocessRegion(
   source: HTMLVideoElement | HTMLImageElement,
@@ -63,11 +75,13 @@ function cropAndPreprocessRegion(
     return false;
   }
 
-  const targetWidth = Math.max(1, Math.round(rect.width * ROI_UPSCALE_FACTOR));
-  const targetHeight = Math.max(
+  const contentWidth = Math.max(1, Math.round(rect.width * ROI_UPSCALE_FACTOR));
+  const contentHeight = Math.max(
     1,
     Math.round(rect.height * ROI_UPSCALE_FACTOR),
   );
+  const targetWidth = contentWidth + OCR_PADDING_PX * 2;
+  const targetHeight = contentHeight + OCR_PADDING_PX * 2;
   canvas.width = targetWidth;
   canvas.height = targetHeight;
 
@@ -76,6 +90,10 @@ function cropAndPreprocessRegion(
     return false;
   }
 
+  // Tesseract LSTM は「白背景に黒文字＋十分な余白」で学習されているため、
+  // 周囲を白でパディングし、ゲームUIの白〜黄文字を黒・色付き背景やエフェクトを白へ反転抽出する。
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(
@@ -84,27 +102,38 @@ function cropAndPreprocessRegion(
     rect.y,
     rect.width,
     rect.height,
-    0,
-    0,
-    targetWidth,
-    targetHeight,
+    OCR_PADDING_PX,
+    OCR_PADDING_PX,
+    contentWidth,
+    contentHeight,
   );
 
-  // 暗いゲームUI背景の白文字を読み取りやすくするため、グレースケール＋コントラスト強調を行う
-  const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+  const imageData = ctx.getImageData(
+    OCR_PADDING_PX,
+    OCR_PADDING_PX,
+    contentWidth,
+    contentHeight,
+  );
   const data = imageData.data;
-  const contrast = 1.45;
+  const range = BRIGHT_TEXT_HI - BRIGHT_TEXT_LO;
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i] ?? 0;
     const g = data[i + 1] ?? 0;
     const b = data[i + 2] ?? 0;
     const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-    const enhanced = Math.min(255, Math.max(0, (gray - 128) * contrast + 128));
-    data[i] = enhanced;
-    data[i + 1] = enhanced;
-    data[i + 2] = enhanced;
+    let inverted: number;
+    if (gray <= BRIGHT_TEXT_LO) {
+      inverted = 255;
+    } else if (gray >= BRIGHT_TEXT_HI) {
+      inverted = 0;
+    } else {
+      inverted = Math.round(((BRIGHT_TEXT_HI - gray) / range) * 255);
+    }
+    data[i] = inverted;
+    data[i + 1] = inverted;
+    data[i + 2] = inverted;
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx.putImageData(imageData, OCR_PADDING_PX, OCR_PADDING_PX);
   return true;
 }
 
@@ -165,13 +194,17 @@ export function useScreenCapture({
     setReaderProgress(0);
 
     const initPromise = (async () => {
-      const { createWorker, OEM } = await import("tesseract.js");
+      const { createWorker, OEM, PSM } = await import("tesseract.js");
       const worker = await createWorker("jpn", OEM.LSTM_ONLY, {
         logger: (msg) => {
           if (typeof msg.progress === "number") {
             setReaderProgress(Math.round(msg.progress * 100));
           }
         },
+      });
+      // 全4領域を単一行テキストに特化して切り出すため、単一行モードを指定して精度と速度を高める
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_LINE,
       });
       workerRef.current = worker;
       setReaderStatus("ready");
@@ -303,22 +336,46 @@ export function useScreenCapture({
           "result",
         ];
 
+        // coin と turnOrder は同じメッセージ帯を共有するため、座標一致時は1回の読み取り結果を再利用する
+        let cachedCoinOcr: { rawText: string; confidence: number } | null =
+          null;
+        const shareCoinAndTurnOrder = isSameRoi(
+          currentSettings.rois.coin,
+          currentSettings.rois.turnOrder,
+        );
+
         for (const region of regions) {
-          const roi = currentSettings.rois[region];
-          const cropped = cropAndPreprocessRegion(
-            source,
-            sourceWidth,
-            sourceHeight,
-            roi,
-            canvas,
-          );
-          if (!cropped) {
-            continue;
+          let rawText = "";
+          let confidence = 0;
+
+          if (
+            region === "turnOrder" &&
+            shareCoinAndTurnOrder &&
+            cachedCoinOcr
+          ) {
+            rawText = cachedCoinOcr.rawText;
+            confidence = cachedCoinOcr.confidence;
+          } else {
+            const roi = currentSettings.rois[region];
+            const cropped = cropAndPreprocessRegion(
+              source,
+              sourceWidth,
+              sourceHeight,
+              roi,
+              canvas,
+            );
+            if (!cropped) {
+              continue;
+            }
+
+            const { data } = await worker.recognize(canvas);
+            rawText = data.text.trim();
+            confidence = Math.round(data.confidence);
+            if (region === "coin" && shareCoinAndTurnOrder) {
+              cachedCoinOcr = { rawText, confidence };
+            }
           }
 
-          const { data } = await worker.recognize(canvas);
-          const rawText = data.text.trim();
-          const confidence = Math.round(data.confidence);
           if (!rawText) {
             continue;
           }

@@ -18,28 +18,32 @@ export const ROI_REGION_META: readonly RegionMeta[] = [
   {
     key: "cardName",
     label: "カード名エリア",
-    description: "画面左上のカード詳細タイトルなど、カード名が表示される範囲",
+    description:
+      "画面左上のカード詳細タイトルの本体行（ルビ・属性アイコンを除く）",
     borderClass: "border-sky-400 bg-sky-400/15",
     badgeClass: "bg-sky-500 text-slate-950",
   },
   {
     key: "coin",
     label: "コイントス",
-    description: "コイントスの「表 / 裏」が表示される範囲",
+    description:
+      "コイントス後の選択メッセージ帯（「先攻・後攻を選択してください」等）",
     borderClass: "border-amber-400 bg-amber-400/15",
     badgeClass: "bg-amber-500 text-slate-950",
   },
   {
     key: "turnOrder",
     label: "先攻・後攻",
-    description: "「先攻 / 後攻」が表示される範囲",
+    description:
+      "「あなたが先攻です。 / あなたが後攻です。」が表示されるメッセージ帯",
     borderClass: "border-emerald-400 bg-emerald-400/15",
     badgeClass: "bg-emerald-500 text-slate-950",
   },
   {
     key: "result",
     label: "勝敗表示",
-    description: "試合終了時の「VICTORY / DEFEAT」が表示される範囲",
+    description:
+      "デュエルリザルト画面の「デュエル勝利 / デュエル敗北」が表示される範囲",
     borderClass: "border-rose-400 bg-rose-400/15",
     badgeClass: "bg-rose-500 text-white",
   },

@@ -40,14 +40,17 @@ export type CaptureSettings = z.infer<typeof captureSettingsSchema>;
 export const DEFAULT_CAPTURE_SETTINGS_ID = "default-capture-settings";
 
 /**
- * マスターデュエル日本語 UI（16:9 解像度）を想定した初期読み取り範囲プリセット。
- * 実際のプレイ環境に合わせて画面上から 0.0〜1.0 の相対座標で微調整できる。
+ * マスターデュエル日本語 UI（16:9 解像度：1920x1080 / 2560x1440 等）の実測値に基づく
+ * 初期読み取り範囲プリセット。
+ * - coin / turnOrder: 画面下寄り中央のメッセージ帯（「先攻・後攻を選択してください」「あなたが先攻です。」等）
+ * - cardName: 左上カード詳細パネルのカード名本体行（上部のルビと右端の属性アイコンを除外）
+ * - result: デュエルリザルト画面左側の勝敗行（「デュエル勝利」「デュエル敗北」）
  */
 export const DEFAULT_16_9_ROIS: CaptureRoiConfig = {
-  coin: { x: 0.34, y: 0.28, width: 0.32, height: 0.16 },
-  turnOrder: { x: 0.32, y: 0.38, width: 0.36, height: 0.16 },
-  cardName: { x: 0.015, y: 0.04, width: 0.24, height: 0.07 },
-  result: { x: 0.25, y: 0.32, width: 0.5, height: 0.24 },
+  coin: { x: 0.33, y: 0.632, width: 0.34, height: 0.056 },
+  turnOrder: { x: 0.33, y: 0.632, width: 0.34, height: 0.056 },
+  cardName: { x: 0.017, y: 0.141, width: 0.172, height: 0.035 },
+  result: { x: 0.08, y: 0.385, width: 0.14, height: 0.05 },
 };
 
 /**

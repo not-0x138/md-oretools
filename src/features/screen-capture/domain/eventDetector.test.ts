@@ -9,6 +9,15 @@ import {
 
 describe("eventDetector（コイン・先攻後攻・勝敗判定とセッション遷移）", () => {
   it("テキストからコイントスの表・裏を判定できる", () => {
+    expect(detectCoinFlipFromText("先攻・後攻を選択してください")).toBe(
+      "heads",
+    );
+    expect(
+      detectCoinFlipFromText("元 攻 ・ 後 攻 を 選択 し て くだ さい"),
+    ).toBe("heads");
+    expect(detectCoinFlipFromText("対戦相手が先攻・後攻を選択しています")).toBe(
+      "tails",
+    );
     expect(detectCoinFlipFromText("コイン 表")).toBe("heads");
     expect(detectCoinFlipFromText("HEADS")).toBe("heads");
     expect(detectCoinFlipFromText("裏 が出ました")).toBe("tails");
@@ -17,14 +26,20 @@ describe("eventDetector（コイン・先攻後攻・勝敗判定とセッショ
   });
 
   it("テキストから先攻・後攻を判定できる", () => {
+    expect(detectTurnOrderFromText("あな た が 先攻 で す 。")).toBe("first");
+    expect(detectTurnOrderFromText("あなたが後攻です。")).toBe("second");
     expect(detectTurnOrderFromText("先攻")).toBe("first");
     expect(detectTurnOrderFromText("YOU GO FIRST")).toBe("first");
     expect(detectTurnOrderFromText("後攻")).toBe("second");
     expect(detectTurnOrderFromText("SECOND")).toBe("second");
+    // 選択中メッセージは片方が文字化けしても確定扱いしない
+    expect(detectTurnOrderFromText("元攻・後攻を選択してください")).toBeNull();
     expect(detectTurnOrderFromText("ドローフェイズ")).toBeNull();
   });
 
-  it("テキストから勝敗（VICTORY / DEFEAT）を判定できる", () => {
+  it("テキストから勝敗（VICTORY / DEFEAT / リザルト画面）を判定できる", () => {
+    expect(detectDuelResultFromText("デュ エル 勝利")).toBe("win");
+    expect(detectDuelResultFromText("デュエル敗北")).toBe("lose");
     expect(detectDuelResultFromText("VICTORY")).toBe("win");
     expect(detectDuelResultFromText("勝利！")).toBe("win");
     expect(detectDuelResultFromText("DEFEAT")).toBe("lose");
