@@ -4,6 +4,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Columns2,
+  DatabaseBackup,
+  Download,
   MonitorSmartphone,
   RefreshCw,
   Trophy,
@@ -52,7 +54,7 @@ export const PORTAL_NAV_ITEMS: readonly NavItem[] = [
     label: "戦績記録",
     shortLabel: "戦績",
     phase: "Phase 2",
-    available: false,
+    available: true,
     icon: Trophy,
   },
   {
@@ -77,8 +79,11 @@ interface PortalShellProps {
   activeTool: ToolId;
   sidebarCollapsed: boolean;
   dbNotice: DatabaseNoticeType | null;
+  canInstallApp: boolean;
   onSelectTool: (toolId: ToolId) => void;
   onToggleSidebar: () => void;
+  onOpenBackup: () => void;
+  onInstallApp: () => void;
   children: ReactNode;
 }
 
@@ -89,8 +94,11 @@ export function PortalShell({
   activeTool,
   sidebarCollapsed,
   dbNotice,
+  canInstallApp,
   onSelectTool,
   onToggleSidebar,
+  onOpenBackup,
+  onInstallApp,
   children,
 }: PortalShellProps) {
   return (
@@ -175,14 +183,65 @@ export function PortalShell({
           })}
         </nav>
 
-        {!sidebarCollapsed && (
-          <div className="border-t border-border p-3 text-[11px] text-muted-foreground">
-            <p className="font-medium text-foreground">ブラウザ内保存</p>
-            <p className="mt-0.5">
-              入力したデータはこのブラウザだけに保存されます。
-            </p>
-          </div>
-        )}
+        <div className="border-t border-border p-2.5">
+          {sidebarCollapsed ? (
+            <div className="flex flex-col items-center gap-1.5">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label="バックアップ・復元"
+                title="バックアップ・復元"
+                onClick={onOpenBackup}
+              >
+                <DatabaseBackup className="h-4 w-4" />
+              </Button>
+              {canInstallApp && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label="アプリとしてインストール"
+                  title="アプリとしてインストール"
+                  onClick={onInstallApp}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2 text-[11px] text-muted-foreground">
+              <div>
+                <p className="font-medium text-foreground">ブラウザ内保存</p>
+                <p className="mt-0.5">
+                  入力したデータはこのブラウザだけに保存されます。
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs"
+                onClick={onOpenBackup}
+              >
+                <DatabaseBackup className="h-3.5 w-3.5" />
+                バックアップ・復元
+              </Button>
+              {canInstallApp && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="w-full justify-start text-xs"
+                  onClick={onInstallApp}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  アプリとしてインストール
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -193,6 +252,28 @@ export function PortalShell({
                 MD
               </span>
               <span className="text-sm font-bold">md-oretools</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {canInstallApp && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={onInstallApp}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  インストール
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onOpenBackup}
+              >
+                <DatabaseBackup className="h-3.5 w-3.5" />
+                バックアップ
+              </Button>
             </div>
           </div>
           <nav
