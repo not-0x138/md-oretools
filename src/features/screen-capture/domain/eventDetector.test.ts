@@ -37,9 +37,12 @@ describe("eventDetector（コイン・先攻後攻・勝敗判定とセッショ
     expect(detectTurnOrderFromText("ドローフェイズ")).toBeNull();
   });
 
-  it("テキストから勝敗（VICTORY / DEFEAT / リザルト画面）を判定できる", () => {
+  it("テキストから勝敗（VICTORY / DEFEAT / リザルト画面 / 降参メッセージ）を判定できる", () => {
     expect(detectDuelResultFromText("デュ エル 勝利")).toBe("win");
     expect(detectDuelResultFromText("デュエル敗北")).toBe("lose");
+    expect(detectDuelResultFromText("降参 し まし た")).toBe("lose");
+    expect(detectDuelResultFromText("対戦相手が降参しました")).toBe("win");
+    expect(detectDuelResultFromText("降参しますか？")).toBeNull();
     expect(detectDuelResultFromText("VICTORY")).toBe("win");
     expect(detectDuelResultFromText("勝利！")).toBe("win");
     expect(detectDuelResultFromText("DEFEAT")).toBe("lose");

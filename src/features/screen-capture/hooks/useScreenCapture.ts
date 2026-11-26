@@ -392,6 +392,19 @@ export function useScreenCapture({
                 summary: `コイントス検知: ${coin === "heads" ? "表" : "裏"}`,
               });
             }
+            // 実機では降参直後の「降参しました」「対戦相手が降参しました」も同じメッセージ帯に出るため、
+            // 追加OCRなしでここから勝敗も検知する。
+            const messageResult = detectDuelResultFromText(rawText);
+            if (messageResult) {
+              callbacksRef.current?.onResultDetected?.(messageResult, nowIso);
+              appendLog({
+                at: nowIso,
+                region: "result",
+                rawText,
+                confidence,
+                summary: `勝敗検知: ${messageResult === "win" ? "勝ち" : "負け"}`,
+              });
+            }
           } else if (region === "turnOrder") {
             const turnOrder = detectTurnOrderFromText(rawText);
             if (turnOrder) {

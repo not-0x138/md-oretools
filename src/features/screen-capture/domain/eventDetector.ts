@@ -71,10 +71,31 @@ export function detectDuelResultFromText(raw: string): DuelResultValue | null {
   if (!text) {
     return null;
   }
+  // 降参確認ダイアログ（「降参しますか？」）は確定前なので除外する
+  if (text.includes("降参しますか")) {
+    return null;
+  }
+
+  const isOpponentSurrender = text.includes("相手") && text.includes("降参");
+  const isSelfSurrender =
+    !text.includes("相手") &&
+    text.includes("降参") &&
+    (text.includes("ました") || text.includes("確定"));
+  const isOpponentTimeoutOrDisconnect =
+    text.includes("相手") &&
+    (text.includes("時間切れ") || text.includes("接続"));
+
   const hasWin =
-    text.includes("VICTORY") || text.includes("勝利") || text.includes("WIN");
+    text.includes("VICTORY") ||
+    text.includes("勝利") ||
+    text.includes("WIN") ||
+    isOpponentSurrender ||
+    isOpponentTimeoutOrDisconnect;
   const hasLose =
-    text.includes("DEFEAT") || text.includes("敗北") || text.includes("LOSE");
+    text.includes("DEFEAT") ||
+    text.includes("敗北") ||
+    text.includes("LOSE") ||
+    isSelfSurrender;
 
   if (hasWin && !hasLose) {
     return "win";

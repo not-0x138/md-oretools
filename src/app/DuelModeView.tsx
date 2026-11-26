@@ -9,7 +9,7 @@ import {
   RotateCcw,
   Sparkles,
   Swords,
-  XCircle,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,6 @@ import {
   type DuelResultValue,
   type LiveDuelSession,
   type LiveSessionEvent,
-  type PendingDuelResult,
   reduceLiveDuelSession,
   type ThemeDictionaryItem,
   type TurnOrderValue,
@@ -52,6 +51,18 @@ import { useTransientMessage } from "@/shared/lib/useTransientMessage";
 interface DuelModeViewProps {
   onEditingStateChange?: (isEditing: boolean) => void;
 }
+
+interface ConfirmRecordDraft {
+  source: "auto" | "manual";
+  result: DuelResultValue;
+  coinFlip: CoinFlipValue;
+  turnOrder: TurnOrderValue;
+  opponentDeck: string;
+  memo: string;
+  playedAt: string;
+}
+
+const AUTO_RESULT_COOLDOWN_MS = 15_000;
 
 export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
   const { entries: cheatSheetEntries } = useCheatSheetDictionary();
@@ -83,34 +94,28 @@ export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
-  // 仮確定バナー上でワンクリック修正するための編集値
-  const [pendingCoin, setPendingCoin] = useState<CoinFlipValue>("heads");
-  const [pendingTurnOrder, setPendingTurnOrder] =
-    useState<TurnOrderValue>("first");
-  const [pendingResultValue, setPendingResultValue] =
-    useState<DuelResultValue>("win");
-  const [pendingOpponent, setPendingOpponent] = useState("不明");
+  // 登録前の確認ダイアログ用ドラフト（自動検知・手動ボタンのどちらも必ずここを通す）
+  const [confirmDraft, setConfirmDraft] = useState<ConfirmRecordDraft | null>(
+    null,
+  );
+  const confirmDraftRef = useRef(confirmDraft);
+  confirmDraftRef.current = confirmDraft;
+  const memoRef = useRef(memo);
+  memoRef.current = memo;
+  const lastAutoPromptAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (selectedDeckId && activeDecks.some((d) => d.id === selectedDeckId)) {
       return;
     }
-    const first = activeDecks[0];
-    if (first) {
-      setSelectedDeckId(first.id);
+    const lastUsedDeckId = records[0]?.playerDeckId;
+    const preferred =
+      (lastUsedDeckId && activeDecks.find((d) => d.id === lastUsedDeckId)) ||
+      activeDecks[0];
+    if (preferred) {
+      setSelectedDeckId(preferred.id);
     }
-  }, [activeDecks, selectedDeckId]);
-
-  useEffect(() => {
-    const pending = session.pendingResult;
-    if (!pending) {
-      return;
-    }
-    setPendingCoin(pending.coinFlip ?? "heads");
-    setPendingTurnOrder(pending.turnOrder ?? "first");
-    setPendingResultValue(pending.result);
-    setPendingOpponent(pending.opponentDeck || "不明");
-  }, [session.pendingResult]);
+  }, [activeDecks, records, selectedDeckId]);
 
   const dictionary: ThemeDictionaryItem[] = useMemo(
     () =>
@@ -153,6 +158,7 @@ export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
         coinFlip: CoinFlipValue;
         turnOrder: TurnOrderValue;
         opponentDeck: string;
+        memo: string;
         playedAt: string;
       },
       sourceLabel: string,
@@ -171,7 +177,7 @@ export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
         coinFlip: payload.coinFlip,
         turnOrder: payload.turnOrder,
         result: payload.result,
-        memo: memo.trim(),
+        memo: payload.memo.trim(),
       });
       if (saved) {
         setMemo("");
@@ -182,40 +188,30 @@ export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
       }
       return false;
     },
-    [memo, rank, saveRecord, season, selectedDeck, showToast],
+    [rank, saveRecord, season, selectedDeck, showToast],
   );
 
-  const autoCommitPending = useCallback(
-    async (pending: PendingDuelResult) => {
-      await commitDuelResult(
-        {
-          result: pending.result,
-          coinFlip: pending.coinFlip ?? "heads",
-          turnOrder: pending.turnOrder ?? "first",
-          opponentDeck: pending.opponentDeck || "不明",
-          playedAt: pending.detectedAt,
-        },
-        "前戦の結果を自動確定しました",
-      );
+  const dispatchSessionEvent = useCallback((event: LiveSessionEvent) => {
+    const transition = reduceLiveDuelSession(sessionRef.current, event);
+    sessionRef.current = transition.session;
+    setSession(transition.session);
+  }, []);
+
+  const openConfirmDialog = useCallback(
+    (result: DuelResultValue, source: "auto" | "manual", at: string) => {
+      const current = sessionRef.current;
+      setConfirmDraft({
+        source,
+        result,
+        coinFlip: current.coinFlip ?? "heads",
+        turnOrder: current.turnOrder ?? "first",
+        opponentDeck: current.opponentDeck || "不明",
+        memo: memoRef.current,
+        playedAt: at,
+      });
     },
-    [commitDuelResult],
+    [],
   );
-
-  const dispatchSessionEvent = useCallback(
-    (event: LiveSessionEvent, resetInferenceFn?: () => void) => {
-      const transition = reduceLiveDuelSession(sessionRef.current, event);
-      sessionRef.current = transition.session;
-      setSession(transition.session);
-
-      if (transition.autoCommitResult) {
-        resetInferenceFn?.();
-        void autoCommitPending(transition.autoCommitResult);
-      }
-    },
-    [autoCommitPending],
-  );
-
-  const resetInferenceRef = useRef<() => void>(() => {});
 
   const {
     videoRef,
@@ -235,10 +231,7 @@ export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
     extraExcludedCards,
     callbacks: {
       onCoinDetected: (coinFlip, at) => {
-        dispatchSessionEvent(
-          { type: "coin_detected", coinFlip, at },
-          resetInferenceRef.current,
-        );
+        dispatchSessionEvent({ type: "coin_detected", coinFlip, at });
       },
       onTurnOrderDetected: (turnOrder, at) => {
         dispatchSessionEvent({ type: "turn_order_detected", turnOrder, at });
@@ -255,55 +248,85 @@ export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
         }
       },
       onResultDetected: (result, at) => {
-        dispatchSessionEvent({ type: "result_detected", result, at });
+        // すでに確認ダイアログ表示中、または直前の自動検知からクールダウン内なら再表示しない
+        const now = Date.now();
+        if (
+          confirmDraftRef.current ||
+          now - lastAutoPromptAtRef.current < AUTO_RESULT_COOLDOWN_MS
+        ) {
+          return;
+        }
+        lastAutoPromptAtRef.current = now;
+        openConfirmDialog(result, "auto", at);
       },
     },
   });
 
-  resetInferenceRef.current = resetInference;
-
-  const handleConfirmPending = async () => {
-    const pending = session.pendingResult;
-    if (!pending) {
+  const handleConfirmRegister = async () => {
+    if (!confirmDraft) {
       return;
     }
     const ok = await commitDuelResult(
       {
-        result: pendingResultValue,
-        coinFlip: pendingCoin,
-        turnOrder: pendingTurnOrder,
-        opponentDeck: pendingOpponent,
-        playedAt: pending.detectedAt,
+        result: confirmDraft.result,
+        coinFlip: confirmDraft.coinFlip,
+        turnOrder: confirmDraft.turnOrder,
+        opponentDeck: confirmDraft.opponentDeck,
+        memo: confirmDraft.memo,
+        playedAt: confirmDraft.playedAt,
       },
-      "対戦結果を保存しました",
+      "対戦結果を登録しました",
     );
     if (ok) {
-      dispatchSessionEvent({ type: "confirm_pending" });
-      resetInference();
-    }
-  };
-
-  const handleDiscardPending = () => {
-    dispatchSessionEvent({ type: "discard_pending" });
-    resetInference();
-    showToast("仮確定の結果を破棄しました。");
-  };
-
-  const handleQuickRecord = async (result: DuelResultValue) => {
-    const ok = await commitDuelResult(
-      {
-        result,
-        coinFlip: session.coinFlip ?? "heads",
-        turnOrder: session.turnOrder ?? "first",
-        opponentDeck: session.opponentDeck || "不明",
-        playedAt: new Date().toISOString(),
-      },
-      "対戦結果を保存しました",
-    );
-    if (ok) {
+      setConfirmDraft(null);
       dispatchSessionEvent({ type: "reset_session" });
       resetInference();
     }
+  };
+
+  const handleDeclineRegister = useCallback(() => {
+    if (!confirmDraftRef.current) {
+      return;
+    }
+    // 「いいえ」時は登録せず、確認画面で編集したメモ等を進行中フォームへ引き継いで手動編集へ戻す
+    const draft = confirmDraftRef.current;
+    setMemo(draft.memo);
+    if (
+      draft.opponentDeck &&
+      draft.opponentDeck !== sessionRef.current.opponentDeck
+    ) {
+      dispatchSessionEvent({
+        type: "opponent_manual_set",
+        opponentDeck: draft.opponentDeck,
+        themeId: sessionRef.current.opponentThemeId,
+        at: new Date().toISOString(),
+      });
+    }
+    setConfirmDraft(null);
+    // 同じリザルト画面が映り続けていてもすぐに再ポップアップしないようクールダウンを更新する
+    lastAutoPromptAtRef.current = Date.now();
+    window.setTimeout(() => {
+      document.getElementById("duel-memo")?.focus();
+    }, 0);
+  }, [dispatchSessionEvent]);
+
+  useEffect(() => {
+    if (!confirmDraft) {
+      return;
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleDeclineRegister();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [confirmDraft, handleDeclineRegister]);
+
+  const handleQuickRecord = (result: DuelResultValue) => {
+    openConfirmDialog(result, "manual", new Date().toISOString());
   };
 
   const handleQuickAddDeck = async () => {
@@ -454,142 +477,247 @@ export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
         </div>
       )}
 
-      {/* 勝敗の仮確定バナー */}
-      {session.pendingResult && (
-        <Card className="border-primary/60 bg-primary/10">
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <CardTitle className="text-base">
-                  試合結果を検知しました（仮確定）
-                </CardTitle>
+      {/* 登録前の確認ダイアログ（画面認識の勝敗検知・手動ボタンの両方で表示） */}
+      {confirmDraft && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="duel-confirm-dialog-title"
+        >
+          <Card className="w-full max-w-lg border-primary/50 bg-card shadow-2xl">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <CardTitle
+                      id="duel-confirm-dialog-title"
+                      className="text-base"
+                    >
+                      この対戦結果を登録しますか？
+                    </CardTitle>
+                    {confirmDraft.source === "auto" && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        自動検知
+                      </Badge>
+                    )}
+                  </div>
+                  <CardDescription className="text-xs">
+                    内容を確認して「はい」で登録します。メモを詳しく書きたい場合は「いいえ」で戻って手動編集できます。
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleDeclineRegister}
+                  aria-label="閉じる"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-              <span className="text-xs text-muted-foreground">
-                そのまま次の試合のコイントスを検知すると自動で確定されます
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-1">
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  勝敗
-                </span>
-                <div className="grid grid-cols-2 gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={
-                      pendingResultValue === "win" ? "default" : "outline"
-                    }
-                    onClick={() => setPendingResultValue("win")}
-                  >
-                    勝ち
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={
-                      pendingResultValue === "lose" ? "destructive" : "outline"
-                    }
-                    onClick={() => setPendingResultValue("lose")}
-                  >
-                    負け
-                  </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-md border border-border bg-background/50 px-3 py-2 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-muted-foreground">自分のデッキ</span>
+                  <span className="font-medium text-foreground">
+                    {selectedDeck?.name ?? "未選択（先に登録してください）"}
+                  </span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-muted-foreground">
+                    シーズン / ランク帯
+                  </span>
+                  <span className="text-foreground">
+                    {season.trim() || DEFAULT_SEASON_LABEL}
+                    {rank.trim() ? ` / ${rank.trim()}` : ""}
+                  </span>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  コイントス
-                </span>
-                <div className="grid grid-cols-2 gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={pendingCoin === "heads" ? "default" : "outline"}
-                    onClick={() => setPendingCoin("heads")}
-                  >
-                    表
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={pendingCoin === "tails" ? "default" : "outline"}
-                    onClick={() => setPendingCoin("tails")}
-                  >
-                    裏
-                  </Button>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    勝敗
+                  </span>
+                  <div className="grid grid-cols-2 gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        confirmDraft.result === "win" ? "default" : "outline"
+                      }
+                      onClick={() =>
+                        setConfirmDraft((prev) =>
+                          prev ? { ...prev, result: "win" } : null,
+                        )
+                      }
+                    >
+                      勝ち
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        confirmDraft.result === "lose"
+                          ? "destructive"
+                          : "outline"
+                      }
+                      onClick={() =>
+                        setConfirmDraft((prev) =>
+                          prev ? { ...prev, result: "lose" } : null,
+                        )
+                      }
+                    >
+                      負け
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-1">
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  先攻・後攻
-                </span>
-                <div className="grid grid-cols-2 gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={
-                      pendingTurnOrder === "first" ? "default" : "outline"
-                    }
-                    onClick={() => setPendingTurnOrder("first")}
-                  >
-                    先攻
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={
-                      pendingTurnOrder === "second" ? "default" : "outline"
-                    }
-                    onClick={() => setPendingTurnOrder("second")}
-                  >
-                    後攻
-                  </Button>
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    コイントス
+                  </span>
+                  <div className="grid grid-cols-2 gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        confirmDraft.coinFlip === "heads"
+                          ? "default"
+                          : "outline"
+                      }
+                      onClick={() =>
+                        setConfirmDraft((prev) =>
+                          prev ? { ...prev, coinFlip: "heads" } : null,
+                        )
+                      }
+                    >
+                      表
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        confirmDraft.coinFlip === "tails"
+                          ? "default"
+                          : "outline"
+                      }
+                      onClick={() =>
+                        setConfirmDraft((prev) =>
+                          prev ? { ...prev, coinFlip: "tails" } : null,
+                        )
+                      }
+                    >
+                      裏
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    先攻・後攻
+                  </span>
+                  <div className="grid grid-cols-2 gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        confirmDraft.turnOrder === "first"
+                          ? "default"
+                          : "outline"
+                      }
+                      onClick={() =>
+                        setConfirmDraft((prev) =>
+                          prev ? { ...prev, turnOrder: "first" } : null,
+                        )
+                      }
+                    >
+                      先攻
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        confirmDraft.turnOrder === "second"
+                          ? "default"
+                          : "outline"
+                      }
+                      onClick={() =>
+                        setConfirmDraft((prev) =>
+                          prev ? { ...prev, turnOrder: "second" } : null,
+                        )
+                      }
+                    >
+                      後攻
+                    </Button>
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label
-                  htmlFor="duel-pending-opponent"
+                  htmlFor="duel-confirm-opponent"
                   className="text-[11px] font-medium text-muted-foreground"
                 >
                   相手デッキ
                 </label>
                 <ComboboxInput
-                  id="duel-pending-opponent"
-                  value={pendingOpponent}
-                  onChange={setPendingOpponent}
+                  id="duel-confirm-opponent"
+                  value={confirmDraft.opponentDeck}
+                  onChange={(value) =>
+                    setConfirmDraft((prev) =>
+                      prev ? { ...prev, opponentDeck: value } : null,
+                    )
+                  }
                   options={opponentSuggestions}
                   placeholder="相手デッキ名"
                 />
               </div>
-            </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={handleDiscardPending}
-              >
-                <XCircle className="h-4 w-4" />
-                破棄
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => void handleConfirmPending()}
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                この内容で戦績を確定
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="space-y-1">
+                <label
+                  htmlFor="duel-confirm-memo"
+                  className="text-[11px] font-medium text-muted-foreground"
+                >
+                  ひとことメモ（任意）
+                </label>
+                <Input
+                  id="duel-confirm-memo"
+                  value={confirmDraft.memo}
+                  onChange={(e) =>
+                    setConfirmDraft((prev) =>
+                      prev ? { ...prev, memo: e.target.value } : null,
+                    )
+                  }
+                  placeholder="うらら刺さった・誘発貫通など"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDeclineRegister}
+                >
+                  いいえ（手動で編集する）
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!selectedDeck}
+                  onClick={() => void handleConfirmRegister()}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  はい、登録する
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* 2ペイン本体 */}
@@ -839,18 +967,15 @@ export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
                 />
               </div>
 
-              {/* 手動クイック確定 */}
+              {/* 手動クイック確定（確認ダイアログ経由） */}
               <div className="grid grid-cols-2 gap-2 pt-1">
-                <Button
-                  type="button"
-                  onClick={() => void handleQuickRecord("win")}
-                >
+                <Button type="button" onClick={() => handleQuickRecord("win")}>
                   勝ちで記録
                 </Button>
                 <Button
                   type="button"
                   variant="destructive"
-                  onClick={() => void handleQuickRecord("lose")}
+                  onClick={() => handleQuickRecord("lose")}
                 >
                   負けで記録
                 </Button>
