@@ -1,6 +1,7 @@
 import {
   ArrowDownWideNarrow,
   BookOpen,
+  ExternalLink,
   Filter,
   Pencil,
   Plus,
@@ -11,7 +12,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,14 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useTransientMessage } from "@/shared/lib/useTransientMessage";
+import { CARD_SUGGEST_CATALOG } from "../data/cardSuggestCatalog";
 import { HAND_TRAP_CATALOG } from "../data/handTrapCatalog";
+import { NEURON_CID_MAP } from "../data/neuronCidMap";
+import { buildCardSuggestDictionary } from "../domain/cardSuggest";
+import {
+  extractNeuronLinksFromLabel,
+  resolveNeuronCardLink,
+} from "../domain/neuronLink";
 import {
   filterAndSortHandTraps,
   filterCheatSheetByTier,
@@ -45,6 +53,7 @@ import {
   type TierFilterValue,
 } from "../domain/types";
 import { useCheatSheetDictionary } from "../hooks/useCheatSheetDictionary";
+import { CardSuggestInput } from "./CardSuggestInput";
 
 const PRIORITY_META: Record<
   HandTrapPriority,
@@ -146,6 +155,7 @@ export function CheatSheetView({
   const [draft, setDraft] = useState<EditorDraft | null>(null);
   const [newThemeName, setNewThemeName] = useState("");
   const [newTrapLabel, setNewTrapLabel] = useState("");
+  const [newSignatureCard, setNewSignatureCard] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [highPriorityOnly, setHighPriorityOnly] = useState(false);
   const [sortByPriority, setSortByPriority] = useState(true);
@@ -209,6 +219,21 @@ export function CheatSheetView({
     );
   }, [draft]);
 
+  const cardSuggestDictionary = useMemo(
+    () => buildCardSuggestDictionary(CARD_SUGGEST_CATALOG, entries),
+    [entries],
+  );
+
+  const existingTrapLabels = useMemo(
+    () => (draft ? draft.handTraps.map((ht) => ht.label) : []),
+    [draft],
+  );
+
+  const existingSignatureCards = useMemo(
+    () => (draft ? parseUniqueListInput(draft.signatureCardsText) : []),
+    [draft],
+  );
+
   useEffect(() => {
     if (!selectedId && entries[0]) {
       setSelectedId(entries[0].id);
@@ -250,6 +275,7 @@ export function CheatSheetView({
     setIsEditing(false);
     setDraft(null);
     setNewTrapLabel("");
+    setNewSignatureCard("");
   };
 
   const handleSaveEdit = async () => {
@@ -405,8 +431,8 @@ export function CheatSheetView({
     );
   };
 
-  const addCustomHandTrap = () => {
-    const label = newTrapLabel.trim();
+  const addCustomHandTrap = (overrideLabel?: string) => {
+    const label = (overrideLabel ?? newTrapLabel).trim();
     if (!label || !draft) {
       return;
     }
@@ -421,6 +447,27 @@ export function CheatSheetView({
       prev ? { ...prev, handTraps: [...prev.handTraps, customTrap] } : prev,
     );
     setNewTrapLabel("");
+  };
+
+  const addSignatureCard = (overrideCardName?: string) => {
+    const cardName = (overrideCardName ?? newSignatureCard).trim();
+    if (!cardName || !draft) {
+      return;
+    }
+    setDraft((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const existing = parseUniqueListInput(prev.signatureCardsText);
+      if (existing.includes(cardName)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        signatureCardsText: [...existing, cardName].join("\n"),
+      };
+    });
+    setNewSignatureCard("");
   };
 
   const removeCustomHandTrap = (trapId: string) => {
@@ -860,27 +907,21 @@ export function CheatSheetView({
                   )}
 
                   <div className="flex gap-2 pt-1">
-                    <Input
+                    <CardSuggestInput
                       value={newTrapLabel}
-                      onChange={(e) => setNewTrapLabel(e.target.value)}
-                      placeholder="他の誘発カードを手入力で追加（例: 禁じられた一滴）"
+                      onChange={setNewTrapLabel}
+                      onCommit={(cardName) => addCustomHandTrap(cardName)}
+                      dictionary={cardSuggestDictionary}
+                      preferredCategory="handTrap"
+                      excludeNames={existingTrapLabels}
+                      placeholder="読みやカード名で追加（例: はるう / いってき / 禁じられた一滴）"
                       aria-label="追加する誘発カード名"
-                      className="text-xs"
-                      onKeyDown={(e) => {
-                        if (e.nativeEvent.isComposing || e.keyCode === 229) {
-                          return;
-                        }
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addCustomHandTrap();
-                        }
-                      }}
                     />
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={addCustomHandTrap}
+                      onClick={() => addCustomHandTrap()}
                       disabled={!newTrapLabel.trim()}
                     >
                       <Plus className="h-4 w-4" />
@@ -896,6 +937,28 @@ export function CheatSheetView({
                   >
                     主なカード（1行に1枚・汎用カードは除く）
                   </label>
+                  <div className="flex gap-2">
+                    <CardSuggestInput
+                      value={newSignatureCard}
+                      onChange={setNewSignatureCard}
+                      onCommit={(cardName) => addSignatureCard(cardName)}
+                      dictionary={cardSuggestDictionary}
+                      preferredCategory="theme"
+                      excludeNames={existingSignatureCards}
+                      placeholder="読みやカード名から候補を選んで追加（例: ふぁいめな / らくいん）"
+                      aria-label="主なカード名サジェスト入力"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => addSignatureCard()}
+                      disabled={!newSignatureCard.trim()}
+                    >
+                      <Plus className="h-4 w-4" />
+                      追加
+                    </Button>
+                  </div>
                   <Textarea
                     id="cs-signature-cards"
                     rows={4}
@@ -1091,9 +1154,46 @@ export function CheatSheetView({
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="text-sm font-semibold">
-                                  {ht.label}
-                                </span>
+                                {(() => {
+                                  const links = extractNeuronLinksFromLabel(
+                                    ht.label,
+                                    NEURON_CID_MAP,
+                                  );
+                                  if (links.length === 0) {
+                                    return (
+                                      <span className="text-sm font-semibold">
+                                        {ht.label}
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span className="inline-flex flex-wrap items-center gap-1 text-sm font-semibold">
+                                      {links.map((link, idx) => (
+                                        <Fragment key={link.keyword}>
+                                          {idx > 0 && (
+                                            <span className="text-muted-foreground">
+                                              /
+                                            </span>
+                                          )}
+                                          <a
+                                            href={link.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title={
+                                              link.isDirectDetail
+                                                ? `遊戯王ニューロンで「${link.keyword}」の詳細を開く`
+                                                : `遊戯王ニューロンで「${link.keyword}」を検索`
+                                            }
+                                            className="inline-flex items-center gap-1 transition-colors hover:text-primary hover:underline"
+                                          >
+                                            {link.label}
+                                            <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                                          </a>
+                                        </Fragment>
+                                      ))}
+                                    </span>
+                                  );
+                                })()}
                                 {!ht.isStandard && (
                                   <Badge
                                     variant="outline"
@@ -1118,21 +1218,49 @@ export function CheatSheetView({
                 </div>
 
                 <div className="space-y-2 border-t border-border pt-4">
-                  <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                    主なカード（カード名検索の対象）
-                  </h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      主なカード（カード名検索の対象）
+                    </h3>
+                    {selectedEntry.signatureCards.length > 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        カード名クリックで遊戯王ニューロンを開く
+                      </span>
+                    )}
+                  </div>
                   {selectedEntry.signatureCards.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
                       未登録（編集から追加できます）
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
-                      {selectedEntry.signatureCards.map((card) => (
-                        <Badge key={card} variant="outline">
-                          {card}
-                        </Badge>
-                      ))}
+                      {selectedEntry.signatureCards.map((card) => {
+                        const link = resolveNeuronCardLink(
+                          card,
+                          NEURON_CID_MAP,
+                        );
+                        if (!link) {
+                          return null;
+                        }
+                        return (
+                          <a
+                            key={card}
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={
+                              link.isDirectDetail
+                                ? `遊戯王ニューロンで「${link.keyword}」の詳細を開く`
+                                : `遊戯王ニューロンで「${link.keyword}」を検索`
+                            }
+                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-primary/10 hover:text-primary"
+                          >
+                            {card}
+                            <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                          </a>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
