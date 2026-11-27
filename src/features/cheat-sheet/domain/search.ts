@@ -1,9 +1,11 @@
 import {
   type CheatSheetEntry,
   type HandTrapMemo,
+  type HandTrapPriority,
   type ResolvedCheatSheetEntry,
   type SearchMatchResult,
   STANDARD_HAND_TRAPS,
+  type TierFilterValue,
 } from "./types";
 
 const KATAKANA_START = 0x30a1;
@@ -90,6 +92,9 @@ export function mergeCheatSheetEntries(
     if (override) {
       merged.push({
         ...override,
+        tier: override.tier ?? tpl.tier,
+        deckType: override.deckType ?? tpl.deckType,
+        summonMethods: override.summonMethods ?? tpl.summonMethods,
         handTraps: ensureStandardHandTraps(override, tpl),
         source: "customized",
       });
@@ -168,6 +173,71 @@ export function searchCheatSheetEntries(
   );
 }
 
+export function filterCheatSheetByTier(
+  results: readonly SearchMatchResult[],
+  tierFilter: TierFilterValue,
+): SearchMatchResult[] {
+  if (tierFilter === "all") {
+    return [...results];
+  }
+  return results.filter(({ entry }) => {
+    switch (tierFilter) {
+      case "top":
+        return entry.tier === "tier1" || entry.tier === "tier2";
+      case "tier3":
+        return entry.tier === "tier3";
+      case "tier4":
+        return entry.tier === "tier4";
+      case "tier5":
+        return entry.tier === "tier5" || entry.tier === "other";
+      case "custom":
+        return entry.source === "customized" || entry.source === "custom";
+      default:
+        return true;
+    }
+  });
+}
+
+const PRIORITY_ORDER: Record<HandTrapPriority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+
+export function filterAndSortHandTraps(
+  handTraps: readonly HandTrapMemo[],
+  options: {
+    highPriorityOnly?: boolean;
+    selectedTrapIds?: readonly string[];
+    sortByPriority?: boolean;
+  } = {},
+): HandTrapMemo[] {
+  const {
+    highPriorityOnly = false,
+    selectedTrapIds = [],
+    sortByPriority = false,
+  } = options;
+  const idFilter = selectedTrapIds.length > 0 ? new Set(selectedTrapIds) : null;
+
+  const filtered = handTraps.filter((ht) => {
+    if (idFilter && !idFilter.has(ht.id)) {
+      return false;
+    }
+    if (highPriorityOnly && ht.priority !== "high") {
+      return false;
+    }
+    return true;
+  });
+
+  if (!sortByPriority) {
+    return filtered;
+  }
+
+  return [...filtered].sort(
+    (a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority],
+  );
+}
+
 export function parseUniqueListInput(raw: string): string[] {
   const seen = new Set<string>();
   const unique: string[] = [];
@@ -185,8 +255,9 @@ export function createStandardHandTrapMemos(
   presets: Partial<
     Record<string, { target: string; priority: HandTrapMemo["priority"] }>
   > = {},
+  extras: readonly Omit<HandTrapMemo, "isStandard">[] = [],
 ): HandTrapMemo[] {
-  return STANDARD_HAND_TRAPS.map((def) => {
+  const standard = STANDARD_HAND_TRAPS.map((def) => {
     const preset = presets[def.id];
     return {
       id: def.id,
@@ -196,6 +267,11 @@ export function createStandardHandTrapMemos(
       priority: preset?.priority ?? "medium",
     };
   });
+  const extraMemos: HandTrapMemo[] = extras.map((extra) => ({
+    ...extra,
+    isStandard: false,
+  }));
+  return [...standard, ...extraMemos];
 }
 
 export function createBlankCheatSheetEntry(

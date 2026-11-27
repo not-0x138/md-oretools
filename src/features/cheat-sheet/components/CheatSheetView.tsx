@@ -1,5 +1,7 @@
 import {
+  ArrowDownWideNarrow,
   BookOpen,
+  Filter,
   Pencil,
   Plus,
   RotateCcw,
@@ -24,15 +26,23 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useTransientMessage } from "@/shared/lib/useTransientMessage";
 import {
+  filterAndSortHandTraps,
+  filterCheatSheetByTier,
   parseUniqueListInput,
   searchCheatSheetEntries,
 } from "../domain/search";
 import {
+  CHEAT_SHEET_TIER_LABEL,
   type CheatSheetEntry,
+  type CheatSheetTier,
+  cheatSheetTierSchema,
+  HAND_TRAP_CATALOG,
+  type HandTrapCatalogItem,
   type HandTrapMemo,
   type HandTrapPriority,
   handTrapPrioritySchema,
   type ResolvedCheatSheetEntry,
+  type TierFilterValue,
 } from "../domain/types";
 import { useCheatSheetDictionary } from "../hooks/useCheatSheetDictionary";
 
@@ -49,6 +59,30 @@ const PRIORITY_META: Record<
   low: { symbol: "△", label: "優先: 低", badgeVariant: "muted" },
 };
 
+const TIER_FILTER_OPTIONS: readonly {
+  value: TierFilterValue;
+  label: string;
+}[] = [
+  { value: "all", label: "すべて" },
+  { value: "top", label: "Tier 1-2" },
+  { value: "tier3", label: "Tier 3" },
+  { value: "tier4", label: "Tier 4" },
+  { value: "tier5", label: "Tier 5・他" },
+  { value: "custom", label: "編集・自作" },
+];
+
+const TIER_BADGE_VARIANT: Record<
+  CheatSheetTier,
+  "default" | "secondary" | "outline" | "muted"
+> = {
+  tier1: "default",
+  tier2: "default",
+  tier3: "secondary",
+  tier4: "outline",
+  tier5: "muted",
+  other: "muted",
+};
+
 const MATCH_FIELD_LABEL: Record<string, string | null> = {
   all: null,
   theme: "テーマ名で一致",
@@ -57,11 +91,20 @@ const MATCH_FIELD_LABEL: Record<string, string | null> = {
   memo: "メモで一致",
 };
 
+const SHORT_LABEL_BY_ID = new Map<string, string>(
+  HAND_TRAP_CATALOG.map((item) => [item.id, item.shortLabel]),
+);
+
+const EXTRA_CATALOG_TRAPS: readonly HandTrapCatalogItem[] =
+  HAND_TRAP_CATALOG.filter((item) => !item.isStandard);
+
 interface EditorDraft {
   themeName: string;
   aliasesText: string;
   signatureCardsText: string;
   summary: string;
+  tier: CheatSheetTier | "";
+  deckType: string;
   handTraps: HandTrapMemo[];
 }
 
@@ -71,6 +114,8 @@ function toDraft(entry: ResolvedCheatSheetEntry): EditorDraft {
     aliasesText: entry.aliases.join("、"),
     signatureCardsText: entry.signatureCards.join("\n"),
     summary: entry.summary,
+    tier: entry.tier ?? "",
+    deckType: entry.deckType ?? "",
     handTraps: structuredClone(entry.handTraps),
   };
 }
@@ -95,12 +140,16 @@ export function CheatSheetView({
   } = useCheatSheetDictionary();
 
   const [query, setQuery] = useState("");
+  const [tierFilter, setTierFilter] = useState<TierFilterValue>("all");
   const [selectedId, setSelectedId] = useState<string>("");
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<EditorDraft | null>(null);
   const [newThemeName, setNewThemeName] = useState("");
   const [newTrapLabel, setNewTrapLabel] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [highPriorityOnly, setHighPriorityOnly] = useState(false);
+  const [sortByPriority, setSortByPriority] = useState(true);
+  const [selectedTrapIds, setSelectedTrapIds] = useState<string[]>([]);
   const { message: statusMessage, show: showToast } = useTransientMessage();
 
   useEffect(() => {
@@ -120,13 +169,14 @@ export function CheatSheetView({
     if (exists) {
       setSelectedId(externalSelectedThemeId);
       setQuery("");
+      setTierFilter("all");
     }
   }, [entries, externalSelectedThemeId, isEditing]);
 
-  const searchResults = useMemo(
-    () => searchCheatSheetEntries(entries, query),
-    [entries, query],
-  );
+  const searchResults = useMemo(() => {
+    const matched = searchCheatSheetEntries(entries, query);
+    return filterCheatSheetByTier(matched, tierFilter);
+  }, [entries, query, tierFilter]);
 
   const selectedEntry = useMemo(
     () =>
@@ -137,11 +187,41 @@ export function CheatSheetView({
     [entries, searchResults, selectedId],
   );
 
+  const visibleHandTraps = useMemo(() => {
+    if (!selectedEntry) {
+      return [];
+    }
+    return filterAndSortHandTraps(selectedEntry.handTraps, {
+      highPriorityOnly,
+      selectedTrapIds,
+      sortByPriority,
+    });
+  }, [selectedEntry, highPriorityOnly, selectedTrapIds, sortByPriority]);
+
+  const availableCatalogTraps = useMemo(() => {
+    if (!draft) {
+      return [];
+    }
+    const existingIds = new Set(draft.handTraps.map((ht) => ht.id));
+    const existingLabels = new Set(draft.handTraps.map((ht) => ht.label));
+    return EXTRA_CATALOG_TRAPS.filter(
+      (item) => !existingIds.has(item.id) && !existingLabels.has(item.label),
+    );
+  }, [draft]);
+
   useEffect(() => {
     if (!selectedId && entries[0]) {
       setSelectedId(entries[0].id);
     }
   }, [entries, selectedId]);
+
+  const toggleTrapFilter = (trapId: string) => {
+    setSelectedTrapIds((prev) =>
+      prev.includes(trapId)
+        ? prev.filter((id) => id !== trapId)
+        : [...prev, trapId],
+    );
+  };
 
   const handleSelectEntry = (entry: ResolvedCheatSheetEntry) => {
     if (
@@ -185,6 +265,9 @@ export function CheatSheetView({
         signatureCards: parseUniqueListInput(draft.signatureCardsText),
         summary: draft.summary.trim(),
         handTraps: draft.handTraps,
+        tier: draft.tier || undefined,
+        deckType: draft.deckType.trim() || undefined,
+        summonMethods: selectedEntry.summonMethods,
         updatedAt: new Date().toISOString(),
       };
       const saved = await saveEntry(nextEntry);
@@ -266,12 +349,15 @@ export function CheatSheetView({
       const created = await createEntry(trimmed);
       if (created) {
         setNewThemeName("");
+        setTierFilter("all");
         setSelectedId(created.id);
         setDraft({
           themeName: created.themeName,
           aliasesText: "",
           signatureCardsText: "",
           summary: "",
+          tier: "",
+          deckType: "",
           handTraps: structuredClone(created.handTraps),
         });
         setIsEditing(true);
@@ -301,6 +387,22 @@ export function CheatSheetView({
         ),
       };
     });
+  };
+
+  const addCatalogHandTrap = (item: HandTrapCatalogItem) => {
+    if (!draft) {
+      return;
+    }
+    const customTrap: HandTrapMemo = {
+      id: item.id,
+      label: item.label,
+      isStandard: false,
+      target: "",
+      priority: "high",
+    };
+    setDraft((prev) =>
+      prev ? { ...prev, handTraps: [...prev.handTraps, customTrap] } : prev,
+    );
   };
 
   const addCustomHandTrap = () => {
@@ -341,7 +443,7 @@ export function CheatSheetView({
             誘発カンペ
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            テーマ名やカード名から手札誘発の打ちどころを検索できます。自分用のメモに書き換えて保存も可能です。
+            テーマ名やカード名から手札誘発の打ちどころをすばやく確認できます。自分用のメモに書き換えて保存も可能です。
           </p>
         </div>
         {statusMessage && (
@@ -375,7 +477,12 @@ export function CheatSheetView({
         <div className="space-y-4 lg:col-span-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">テーマを探す</CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-sm">テーマを探す</CardTitle>
+                <span className="text-[11px] text-muted-foreground tabular-nums">
+                  {searchResults.length} / {entries.length} 件
+                </span>
+              </div>
               <CardDescription className="text-xs">
                 ひらがな・カタカナ・中黒（・）の違いを気にせず検索できます。
               </CardDescription>
@@ -386,13 +493,39 @@ export function CheatSheetView({
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="例: すねーく / ぱいどら / 烙印融合"
+                  placeholder="例: どらごんている / ファイメナ / 烙印融合"
                   aria-label="テーマ・別名・カード名で検索"
                   className="pl-8"
                 />
               </div>
 
-              <div className="max-h-[420px] space-y-1.5 overflow-y-auto pr-1">
+              <div
+                className="flex flex-wrap gap-1"
+                role="tablist"
+                aria-label="環境ランクで絞り込み"
+              >
+                {TIER_FILTER_OPTIONS.map((opt) => {
+                  const active = tierFilter === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setTierFilter(opt.value)}
+                      className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                        active
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border/70 bg-background/40 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="max-h-[480px] space-y-1.5 overflow-y-auto pr-1">
                 {isLoading ? (
                   <p className="py-6 text-center text-xs text-muted-foreground">
                     読み込み中…
@@ -417,19 +550,32 @@ export function CheatSheetView({
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-sm">
+                          <span className="truncate font-medium text-sm">
                             {entry.themeName}
                           </span>
-                          {entry.source === "customized" && (
-                            <Badge variant="outline" className="text-[10px]">
-                              編集済み
-                            </Badge>
-                          )}
-                          {entry.source === "custom" && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              自作
-                            </Badge>
-                          )}
+                          <div className="flex shrink-0 items-center gap-1">
+                            {entry.tier && entry.tier !== "other" && (
+                              <Badge
+                                variant={TIER_BADGE_VARIANT[entry.tier]}
+                                className="px-1.5 py-0 text-[10px]"
+                              >
+                                {CHEAT_SHEET_TIER_LABEL[entry.tier]}
+                              </Badge>
+                            )}
+                            {entry.source === "customized" && (
+                              <Badge variant="outline" className="text-[10px]">
+                                編集済み
+                              </Badge>
+                            )}
+                            {entry.source === "custom" && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px]"
+                              >
+                                自作
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         {entry.aliases.length > 0 && (
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -455,7 +601,7 @@ export function CheatSheetView({
                   <Input
                     value={newThemeName}
                     onChange={(e) => setNewThemeName(e.target.value)}
-                    placeholder="テーマ名（例: 青眼）"
+                    placeholder="テーマ名（例: 三幻魔）"
                     aria-label="追加するテーマ名"
                     onKeyDown={(e) => {
                       // 日本語 IME の変換確定 Enter で誤って作成されないよう isComposing を除外する
@@ -550,7 +696,57 @@ export function CheatSheetView({
                       onChange={(e) =>
                         setDraft({ ...draft, aliasesText: e.target.value })
                       }
-                      placeholder="例: 罪宝、蛇眼"
+                      placeholder="例: 星辰、ファイメナ"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="cs-tier"
+                      className="text-xs font-medium text-muted-foreground"
+                    >
+                      環境ランク目安
+                    </label>
+                    <Select
+                      id="cs-tier"
+                      value={draft.tier}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) {
+                          setDraft({ ...draft, tier: "" });
+                          return;
+                        }
+                        const parsed = cheatSheetTierSchema.safeParse(val);
+                        if (parsed.success) {
+                          setDraft({ ...draft, tier: parsed.data });
+                        }
+                      }}
+                    >
+                      <option value="">未設定</option>
+                      <option value="tier1">Tier 1</option>
+                      <option value="tier2">Tier 2</option>
+                      <option value="tier3">Tier 3</option>
+                      <option value="tier4">Tier 4</option>
+                      <option value="tier5">Tier 5</option>
+                      <option value="other">その他</option>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="cs-deck-type"
+                      className="text-xs font-medium text-muted-foreground"
+                    >
+                      デッキタイプ（任意）
+                    </label>
+                    <Input
+                      id="cs-deck-type"
+                      value={draft.deckType}
+                      onChange={(e) =>
+                        setDraft({ ...draft, deckType: e.target.value })
+                      }
+                      placeholder="例: ミッド型 / 展開型 / 罠ビート"
                     />
                   </div>
                 </div>
@@ -641,13 +837,44 @@ export function CheatSheetView({
                     ))}
                   </div>
 
+                  {availableCatalogTraps.length > 0 && (
+                    <div className="space-y-1.5 rounded-md border border-dashed border-border/80 bg-background/30 p-3">
+                      <p className="text-[11px] font-medium text-muted-foreground">
+                        よく使われる誘発・メタカードをワンクリック追加
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {availableCatalogTraps.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => addCatalogHandTrap(item)}
+                            title={item.role}
+                            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] text-foreground transition-colors hover:border-primary hover:bg-primary/10"
+                          >
+                            <Plus className="h-3 w-3 text-primary" />
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-2 pt-1">
                     <Input
                       value={newTrapLabel}
                       onChange={(e) => setNewTrapLabel(e.target.value)}
-                      placeholder="他の誘発カードを追加（例: ディメンション・アトラクター）"
+                      placeholder="他の誘発カードを手入力で追加（例: 禁じられた一滴）"
                       aria-label="追加する誘発カード名"
                       className="text-xs"
+                      onKeyDown={(e) => {
+                        if (e.nativeEvent.isComposing || e.keyCode === 229) {
+                          return;
+                        }
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addCustomHandTrap();
+                        }
+                      }}
                     />
                     <Button
                       type="button"
@@ -680,7 +907,7 @@ export function CheatSheetView({
                       })
                     }
                     placeholder={
-                      "テーマ固有のカードを1行ずつ入力\n例: 蛇眼の炎燐"
+                      "テーマ固有のカードを1行ずつ入力\n例: 星辰砲手ファイメナ"
                     }
                   />
                 </div>
@@ -694,6 +921,25 @@ export function CheatSheetView({
                     <CardTitle className="text-lg">
                       {selectedEntry.themeName}
                     </CardTitle>
+                    {selectedEntry.tier && selectedEntry.tier !== "other" && (
+                      <Badge variant={TIER_BADGE_VARIANT[selectedEntry.tier]}>
+                        {CHEAT_SHEET_TIER_LABEL[selectedEntry.tier]}
+                      </Badge>
+                    )}
+                    {selectedEntry.deckType && (
+                      <Badge variant="outline" className="text-[11px]">
+                        {selectedEntry.deckType}
+                      </Badge>
+                    )}
+                    {selectedEntry.summonMethods?.map((method) => (
+                      <Badge
+                        key={method}
+                        variant="muted"
+                        className="text-[11px]"
+                      >
+                        {method}
+                      </Badge>
+                    ))}
                     {selectedEntry.source === "template" && (
                       <Badge variant="muted">初期データ</Badge>
                     )}
@@ -763,33 +1009,112 @@ export function CheatSheetView({
                   </div>
                 )}
 
-                <div className="space-y-2.5">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    手札誘発の打ちどころ
-                  </h3>
-                  <div className="grid gap-2.5 sm:grid-cols-2">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      手札誘発の打ちどころ（{visibleHandTraps.length} /{" "}
+                      {selectedEntry.handTraps.length}）
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={highPriorityOnly ? "default" : "outline"}
+                        className="h-7 px-2.5 text-[11px]"
+                        onClick={() => setHighPriorityOnly((prev) => !prev)}
+                      >
+                        <Filter className="h-3 w-3" />◎ 優先: 高のみ
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={sortByPriority ? "secondary" : "outline"}
+                        className="h-7 px-2.5 text-[11px]"
+                        onClick={() => setSortByPriority((prev) => !prev)}
+                      >
+                        <ArrowDownWideNarrow className="h-3 w-3" />
+                        優先度順
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 手札にある誘発でクイック絞り込み */}
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {selectedEntry.handTraps.map((ht) => {
-                      const meta = PRIORITY_META[ht.priority];
+                      const active = selectedTrapIds.includes(ht.id);
+                      const shortName =
+                        SHORT_LABEL_BY_ID.get(ht.id) ?? ht.label;
                       return (
-                        <div
+                        <button
                           key={ht.id}
-                          className="rounded-md border border-border/80 bg-background/50 p-3"
+                          type="button"
+                          onClick={() => toggleTrapFilter(ht.id)}
+                          aria-pressed={active}
+                          className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                            active
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border/70 bg-background/40 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                          }`}
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-semibold">
-                              {ht.label}
-                            </span>
-                            <Badge variant={meta.badgeVariant}>
-                              {meta.symbol} {meta.label}
-                            </Badge>
-                          </div>
-                          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                            {ht.target || "未記入（編集から書けます）"}
-                          </p>
-                        </div>
+                          {shortName}
+                        </button>
                       );
                     })}
+                    {selectedTrapIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTrapIds([])}
+                        className="rounded-full px-2 py-0.5 text-[11px] text-primary hover:underline"
+                      >
+                        絞り込み解除
+                      </button>
+                    )}
                   </div>
+
+                  {visibleHandTraps.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
+                      現在の絞り込み条件に一致する手札誘発はありません。
+                    </p>
+                  ) : (
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      {visibleHandTraps.map((ht) => {
+                        const meta = PRIORITY_META[ht.priority];
+                        const isHigh = ht.priority === "high";
+                        return (
+                          <div
+                            key={ht.id}
+                            className={`rounded-md border p-3 ${
+                              isHigh
+                                ? "border-primary/40 bg-primary/5"
+                                : "border-border/80 bg-background/50"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-sm font-semibold">
+                                  {ht.label}
+                                </span>
+                                {!ht.isStandard && (
+                                  <Badge
+                                    variant="outline"
+                                    className="px-1.5 py-0 text-[10px]"
+                                  >
+                                    特効・追加
+                                  </Badge>
+                                )}
+                              </div>
+                              <Badge variant={meta.badgeVariant}>
+                                {meta.symbol} {meta.label}
+                              </Badge>
+                            </div>
+                            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                              {ht.target || "未記入（編集から書けます）"}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2 border-t border-border pt-4">
