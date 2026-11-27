@@ -1,0 +1,75 @@
+name: Check Meta Updates
+
+on:
+  schedule:
+    # 毎週土曜 09:00 JST（UTC 00:00）に最新環境ランキングとの差分をチェック
+    - cron: "0 0 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: check-meta-updates
+  cancel-in-progress: true
+
+jobs:
+  check-meta:
+    name: 環境デッキ・手札誘発の更新検知
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check meta differences
+        id: meta
+        run: |
+          node scripts/check-meta-updates.mjs \
+            --output meta-report.md \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Create or update GitHub Issue
+        if: steps.meta.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("node:fs");
+            const body = fs.readFileSync("meta-report.md", "utf8");
+            const issueTitlePrefix = "[環境更新検知] 誘発カンペのデータアップデート候補";
+
+            const { data: openIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 50,
+            });
+
+            const existing = openIssues.find(
+              (issue) => !issue.pull_request && issue.title.startsWith(issueTitlePrefix),
+            );
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+              core.info(`Updated existing issue #${existing.number}`);
+            } else {
+              const today = new Date().toISOString().slice(0, 10);
+              const { data: created } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `${issueTitlePrefix} (${today})`,
+                body,
+              });
+              core.info(`Created issue #${created.number}`);
+            }
