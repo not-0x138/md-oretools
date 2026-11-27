@@ -142,22 +142,12 @@ export interface InferenceEngineState {
   detectedThemeName: string | null;
 }
 
-export interface PendingDuelResult {
-  result: DuelResultValue;
-  coinFlip: CoinFlipValue | null;
-  turnOrder: TurnOrderValue | null;
-  opponentDeck: string;
-  opponentThemeId: string | null;
-  detectedAt: string;
-}
-
 export interface LiveDuelSession {
   coinFlip: CoinFlipValue | null;
   turnOrder: TurnOrderValue | null;
   opponentDeck: string;
   opponentThemeId: string | null;
   opponentLockedByUser: boolean;
-  pendingResult: PendingDuelResult | null;
   lastUpdatedAt: string | null;
 }
 
@@ -176,13 +166,4 @@ export type LiveSessionEvent =
       themeId: string | null;
       at: string;
     }
-  | { type: "result_detected"; result: DuelResultValue; at: string }
-  | { type: "confirm_pending" }
-  | { type: "discard_pending" }
   | { type: "reset_session" };
-
-export interface LiveSessionTransition {
-  session: LiveDuelSession;
-  /** 次戦コイン検知等で自動確定すべき試合結果が発生した場合に返却する */
-  autoCommitResult: PendingDuelResult | null;
-}

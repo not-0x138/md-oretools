@@ -50,87 +50,39 @@ describe("eventDetector（コイン・先攻後攻・勝敗判定とセッショ
     expect(detectDuelResultFromText("DRAW")).toBeNull();
   });
 
-  it("コイン→先攻→相手類推→勝敗検知で仮確定バナー状態へ遷移する", () => {
+  it("コイン→先攻→相手類推→リセットの順に進行中セッションが更新される", () => {
     let session = createInitialLiveSession();
 
     session = reduceLiveDuelSession(session, {
       type: "coin_detected",
       coinFlip: "heads",
       at: "2026-11-26T12:00:00.000Z",
-    }).session;
+    });
 
     session = reduceLiveDuelSession(session, {
       type: "turn_order_detected",
       turnOrder: "first",
       at: "2026-11-26T12:00:05.000Z",
-    }).session;
+    });
 
     session = reduceLiveDuelSession(session, {
       type: "opponent_inferred",
       themeId: "tenpai",
       themeName: "天盃龍",
       at: "2026-11-26T12:01:00.000Z",
-    }).session;
-
-    const afterWin = reduceLiveDuelSession(session, {
-      type: "result_detected",
-      result: "win",
-      at: "2026-11-26T12:05:00.000Z",
     });
 
-    expect(afterWin.autoCommitResult).toBeNull();
-    expect(afterWin.session.pendingResult).toEqual({
-      result: "win",
+    expect(session).toEqual({
       coinFlip: "heads",
       turnOrder: "first",
       opponentDeck: "天盃龍",
       opponentThemeId: "tenpai",
-      detectedAt: "2026-11-26T12:05:00.000Z",
-    });
-  });
-
-  it("仮確定バナー未操作のまま次戦のコインを検知すると、前戦を自動確定しつつ新セッションを開始する", () => {
-    let session = createInitialLiveSession();
-    session = reduceLiveDuelSession(session, {
-      type: "coin_detected",
-      coinFlip: "tails",
-      at: "2026-11-26T12:00:00.000Z",
-    }).session;
-    session = reduceLiveDuelSession(session, {
-      type: "turn_order_detected",
-      turnOrder: "second",
-      at: "2026-11-26T12:00:03.000Z",
-    }).session;
-    session = reduceLiveDuelSession(session, {
-      type: "opponent_inferred",
-      themeId: "yubel",
-      themeName: "ユベル",
-      at: "2026-11-26T12:01:00.000Z",
-    }).session;
-    session = reduceLiveDuelSession(session, {
-      type: "result_detected",
-      result: "lose",
-      at: "2026-11-26T12:04:00.000Z",
-    }).session;
-
-    const nextMatch = reduceLiveDuelSession(session, {
-      type: "coin_detected",
-      coinFlip: "heads",
-      at: "2026-11-26T12:06:00.000Z",
+      opponentLockedByUser: false,
+      lastUpdatedAt: "2026-11-26T12:01:00.000Z",
     });
 
-    expect(nextMatch.autoCommitResult).toEqual({
-      result: "lose",
-      coinFlip: "tails",
-      turnOrder: "second",
-      opponentDeck: "ユベル",
-      opponentThemeId: "yubel",
-      detectedAt: "2026-11-26T12:04:00.000Z",
-    });
-    expect(nextMatch.session.coinFlip).toBe("heads");
-    expect(nextMatch.session.turnOrder).toBeNull();
-    expect(nextMatch.session.opponentDeck).toBe("不明");
-    expect(nextMatch.session.pendingResult).toBeNull();
+    const reset = reduceLiveDuelSession(session, { type: "reset_session" });
+    expect(reset).toEqual(createInitialLiveSession());
   });
 
   it("プレイヤーが手動で相手デッキを変更した後は、自動類推で上書きしない", () => {
@@ -140,16 +92,17 @@ describe("eventDetector（コイン・先攻後攻・勝敗判定とセッショ
       opponentDeck: "ラビュリンス",
       themeId: "labrynth",
       at: "2026-11-26T12:01:00.000Z",
-    }).session;
+    });
 
     session = reduceLiveDuelSession(session, {
       type: "opponent_inferred",
       themeId: "tenpai",
       themeName: "天盃龍",
       at: "2026-11-26T12:02:00.000Z",
-    }).session;
+    });
 
     expect(session.opponentDeck).toBe("ラビュリンス");
     expect(session.opponentThemeId).toBe("labrynth");
+    expect(session.opponentLockedByUser).toBe(true);
   });
 });

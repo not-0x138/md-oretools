@@ -3,7 +3,6 @@ import type {
   DuelResultValue,
   LiveDuelSession,
   LiveSessionEvent,
-  LiveSessionTransition,
   TurnOrderValue,
 } from "./types";
 
@@ -113,122 +112,56 @@ export function createInitialLiveSession(): LiveDuelSession {
     opponentDeck: "不明",
     opponentThemeId: null,
     opponentLockedByUser: false,
-    pendingResult: null,
     lastUpdatedAt: null,
   };
 }
 
 /**
  * 進行中の対戦セッション状態遷移（純粋関数）。
- * 仮確定バナーが未操作のまま次戦のコイントスを検知した場合は、
- * 前戦の結果を autoCommitResult として返し、新しい対戦セッションを開始する。
  */
 export function reduceLiveDuelSession(
   session: LiveDuelSession,
   event: LiveSessionEvent,
-): LiveSessionTransition {
+): LiveDuelSession {
   switch (event.type) {
-    case "coin_detected": {
-      if (session.pendingResult) {
-        return {
-          autoCommitResult: session.pendingResult,
-          session: {
-            ...createInitialLiveSession(),
-            coinFlip: event.coinFlip,
-            lastUpdatedAt: event.at,
-          },
-        };
-      }
+    case "coin_detected":
       return {
-        autoCommitResult: null,
-        session: {
-          ...session,
-          coinFlip: event.coinFlip,
-          lastUpdatedAt: event.at,
-        },
+        ...session,
+        coinFlip: event.coinFlip,
+        lastUpdatedAt: event.at,
       };
-    }
 
     case "turn_order_detected":
       return {
-        autoCommitResult: null,
-        session: {
-          ...session,
-          turnOrder: event.turnOrder,
-          lastUpdatedAt: event.at,
-        },
+        ...session,
+        turnOrder: event.turnOrder,
+        lastUpdatedAt: event.at,
       };
 
     case "opponent_inferred": {
       if (session.opponentLockedByUser) {
-        return { autoCommitResult: null, session };
+        return session;
       }
       return {
-        autoCommitResult: null,
-        session: {
-          ...session,
-          opponentDeck: event.themeName,
-          opponentThemeId: event.themeId,
-          lastUpdatedAt: event.at,
-          pendingResult: session.pendingResult
-            ? {
-                ...session.pendingResult,
-                opponentDeck: event.themeName,
-                opponentThemeId: event.themeId,
-              }
-            : null,
-        },
+        ...session,
+        opponentDeck: event.themeName,
+        opponentThemeId: event.themeId,
+        lastUpdatedAt: event.at,
       };
     }
 
     case "opponent_manual_set": {
       const cleaned = event.opponentDeck.trim() || "不明";
       return {
-        autoCommitResult: null,
-        session: {
-          ...session,
-          opponentDeck: cleaned,
-          opponentThemeId: event.themeId,
-          opponentLockedByUser: true,
-          lastUpdatedAt: event.at,
-          pendingResult: session.pendingResult
-            ? {
-                ...session.pendingResult,
-                opponentDeck: cleaned,
-                opponentThemeId: event.themeId,
-              }
-            : null,
-        },
+        ...session,
+        opponentDeck: cleaned,
+        opponentThemeId: event.themeId,
+        opponentLockedByUser: true,
+        lastUpdatedAt: event.at,
       };
     }
 
-    case "result_detected": {
-      if (session.pendingResult) {
-        return { autoCommitResult: null, session };
-      }
-      return {
-        autoCommitResult: null,
-        session: {
-          ...session,
-          pendingResult: {
-            result: event.result,
-            coinFlip: session.coinFlip,
-            turnOrder: session.turnOrder,
-            opponentDeck: session.opponentDeck,
-            opponentThemeId: session.opponentThemeId,
-            detectedAt: event.at,
-          },
-          lastUpdatedAt: event.at,
-        },
-      };
-    }
-
-    case "confirm_pending":
-    case "discard_pending":
     case "reset_session":
-      return {
-        autoCommitResult: null,
-        session: createInitialLiveSession(),
-      };
+      return createInitialLiveSession();
   }
 }

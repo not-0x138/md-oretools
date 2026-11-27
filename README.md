@@ -3,24 +3,26 @@
 遊戯王マスターデュエルを快適にする個人用ツールポータル（FF14俺Tools風）。  
 ブラウザ完結で動作し、インストール不要・ゲームプロセス非侵襲で安全に使えることを目指しています。
 
-## 主な機能（予定）
+## 主な機能
 
 1. **手札確率シミュレータ**
-   - デッキ枚数・初手枚数・カードグループごとの条件から初手率を計算
+   - デッキ枚数・初手枚数・カードグループごとの条件（OR of ANDs）から初手率を計算（厳密計算＋モンテカルロ自動切替・プリセット保存）
 2. **誘発カンペ**
    - デッキタイプ別の手札誘発（うらら・増G・泡影・ニビル等）の打ちどころ辞書＆自分用メモ
-   - 画面認識トラッカーと連携したリアルタイム自動表示
-3. **画面認識・戦績トラッカー**
-   - ブラウザの画面共有（`getDisplayMedia`）を利用したコイントス・先攻/後攻・勝敗の自動記録
+   - 遊戯王ニューロンへの詳細リンク＆カード名サジェスト対応
+   - デュエルモードでの画面認識と連携したリアルタイム自動表示
+3. **画面認識・戦績トラッカー＆デュエルモード**
+   - ブラウザの画面共有（`getDisplayMedia`）を利用したコイントス・先攻/後攻・勝敗の自動検知と確認ダイアログ経由の戦績記録
    - 出現カード名のOCR＋あいまい検索による相手デッキの自動類推と戦績集計
+   - JSON バックアップ（全置換／マージ）および PWA 独立ウィンドウ起動に対応
 
 ## 技術スタック
 
 - **フロントエンド**: Vite / React / TypeScript（厳格設定）/ Tailwind CSS / shadcn/ui
 - **品質・テスト**: npm / Biome / Vitest / Zod / lefthook
-- **永続化（予定）**: IndexedDB（Dexie.js）/ localStorage
-- **画面認識 / 検索（予定）**: Screen Capture API (`getDisplayMedia`) / Tesseract.js / Fuse.js
-- **ホスティング / CI**: Cloudflare Pages（HTTPS・$0）/ GitHub Actions / Dependabot
+- **永続化**: IndexedDB（Dexie.js）/ localStorage（UI設定）
+- **画面認識 / 検索**: Screen Capture API (`getDisplayMedia`) / Tesseract.js / Fuse.js
+- **ホスティング / CI**: Cloudflare Pages（HTTPS・$0）/ GitHub Actions / Dependabot / SonarQube Cloud
 
 ## 開発環境・コマンド
 

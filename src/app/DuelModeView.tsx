@@ -192,9 +192,9 @@ export function DuelModeView({ onEditingStateChange }: DuelModeViewProps) {
   );
 
   const dispatchSessionEvent = useCallback((event: LiveSessionEvent) => {
-    const transition = reduceLiveDuelSession(sessionRef.current, event);
-    sessionRef.current = transition.session;
-    setSession(transition.session);
+    const nextSession = reduceLiveDuelSession(sessionRef.current, event);
+    sessionRef.current = nextSession;
+    setSession(nextSession);
   }, []);
 
   const openConfirmDialog = useCallback(

@@ -30,8 +30,6 @@ export {
   type InferenceEngineState,
   type LiveDuelSession,
   type LiveSessionEvent,
-  type LiveSessionTransition,
-  type PendingDuelResult,
   type RoiRect,
   type RoiRegionKey,
   roiRectSchema,

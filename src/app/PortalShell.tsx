@@ -11,7 +11,6 @@ import {
   Trophy,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DatabaseNoticeType } from "@/shared/db/database";
 import { cn } from "@/shared/lib/cn";
@@ -27,8 +26,6 @@ export interface NavItem {
   id: ToolId;
   label: string;
   shortLabel: string;
-  phase: "Phase 1" | "Phase 2" | "Phase 3";
-  available: boolean;
   icon: ComponentType<{ className?: string }>;
 }
 
@@ -37,40 +34,30 @@ export const PORTAL_NAV_ITEMS: readonly NavItem[] = [
     id: "simulator",
     label: "初手確率計算",
     shortLabel: "確率計算",
-    phase: "Phase 1",
-    available: true,
     icon: Calculator,
   },
   {
     id: "cheat-sheet",
     label: "誘発カンペ",
     shortLabel: "誘発カンペ",
-    phase: "Phase 1",
-    available: true,
     icon: BookOpen,
   },
   {
     id: "tracker",
     label: "戦績記録",
     shortLabel: "戦績",
-    phase: "Phase 2",
-    available: true,
     icon: Trophy,
   },
   {
     id: "screen-capture",
     label: "画面読み取り",
     shortLabel: "画面読取",
-    phase: "Phase 3",
-    available: true,
     icon: MonitorSmartphone,
   },
   {
     id: "duel-mode",
     label: "デュエル画面",
     shortLabel: "デュエル",
-    phase: "Phase 3",
-    available: true,
     icon: Columns2,
   },
 ];
@@ -88,7 +75,7 @@ interface PortalShellProps {
 }
 
 /**
- * 単一ツール表示と将来のデュエルモード（2ペイン同時表示）の双方を受け入れられる共通シェル。
+ * 単一ツール表示とデュエルモード（2ペイン同時表示）の双方を受け入れる共通シェル。
  */
 export function PortalShell({
   activeTool,
@@ -152,9 +139,7 @@ export function PortalShell({
                 key={item.id}
                 type="button"
                 onClick={() => onSelectTool(item.id)}
-                aria-label={
-                  item.available ? item.label : `${item.label}（準備中）`
-                }
+                aria-label={item.label}
                 aria-current={isActive ? "page" : undefined}
                 title={sidebarCollapsed ? item.label : undefined}
                 className={cn(
@@ -167,16 +152,9 @@ export function PortalShell({
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 {!sidebarCollapsed && (
-                  <>
-                    <span className="flex-1 truncate text-left">
-                      {item.label}
-                    </span>
-                    {!item.available && (
-                      <Badge variant="muted" className="text-[10px]">
-                        準備中
-                      </Badge>
-                    )}
-                  </>
+                  <span className="flex-1 truncate text-left">
+                    {item.label}
+                  </span>
                 )}
               </button>
             );

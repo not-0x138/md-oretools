@@ -282,7 +282,8 @@ export function BackupDialog({
                   含まれるデータ：確率計算 {pendingCounts.simulatorPresets}件 /
                   誘発カンペ {pendingCounts.cheatSheetOverrides}件 / デッキ{" "}
                   {pendingCounts.playerDecks}件 / 戦績{" "}
-                  {pendingCounts.duelRecords}件
+                  {pendingCounts.duelRecords}件 / 読取設定{" "}
+                  {pendingCounts.captureSettings}件
                 </p>
 
                 <div className="grid gap-2 sm:grid-cols-2">
