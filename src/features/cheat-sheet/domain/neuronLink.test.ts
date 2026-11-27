@@ -4,6 +4,7 @@ import {
   buildNeuronCardSearchUrl,
   extractNeuronLinksFromLabel,
   resolveNeuronCardLink,
+  tokenizeTextWithCardLinks,
 } from "./neuronLink";
 
 describe("buildNeuronCardDetailUrl", () => {
@@ -89,5 +90,52 @@ describe("extractNeuronLinksFromLabel", () => {
     expect(links).toHaveLength(1);
     expect(links[0]?.keyword).toBe("灰流うらら");
     expect(extractNeuronLinksFromLabel("   ")).toEqual([]);
+  });
+});
+
+describe("tokenizeTextWithCardLinks", () => {
+  const cidMap = {
+    星辰砲手ファイメナ: 21353,
+    星辰槍手ルキアス: 21351,
+    羅睺星辰: 21361,
+    "スネークアイ・エクセル": 19147,
+    "閃刀姫－レイ": 13670,
+  };
+
+  it("本文中の登録済みカード名とテーマ内の安全な略称を検出し、公式詳細URLへ紐づける", () => {
+    const segments = tokenizeTextWithCardLinks(
+      "ルキアスのサーチや羅睺星辰の融合、ファイメナ効果に打つ",
+      {
+        cidMap,
+        signatureCards: ["星辰砲手ファイメナ", "星辰槍手ルキアス", "羅睺星辰"],
+      },
+    );
+
+    const cards = segments.filter((seg) => seg.type === "card");
+    expect(cards.map((c) => c.text)).toEqual([
+      "ルキアス",
+      "羅睺星辰",
+      "ファイメナ",
+    ]);
+    expect(cards[0]?.link.keyword).toBe("星辰槍手ルキアス");
+    expect(cards[0]?.link.url).toContain("cid=21351");
+    expect(cards[1]?.link.url).toContain("cid=21361");
+    expect(cards[2]?.link.keyword).toBe("星辰砲手ファイメナ");
+    expect(cards[2]?.link.url).toContain("cid=21353");
+  });
+
+  it("長いカード名を優先して最長一致させ、2文字略称による一般語への誤爆を防ぐ", () => {
+    const segments = tokenizeTextWithCardLinks(
+      "スネークアイ・エクセル初動へのプレイを止める",
+      {
+        cidMap,
+        signatureCards: ["スネークアイ・エクセル", "閃刀姫－レイ"],
+      },
+    );
+
+    const cards = segments.filter((seg) => seg.type === "card");
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.text).toBe("スネークアイ・エクセル");
+    expect(cards[0]?.link.url).toContain("cid=19147");
   });
 });

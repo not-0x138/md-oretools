@@ -31,6 +31,8 @@ import { HAND_TRAP_CATALOG } from "../data/handTrapCatalog";
 import { NEURON_CID_MAP } from "../data/neuronCidMap";
 import { buildCardSuggestDictionary } from "../domain/cardSuggest";
 import {
+  type CardLinkTextSegment,
+  createCardLinkTokenizer,
   extractNeuronLinksFromLabel,
   resolveNeuronCardLink,
 } from "../domain/neuronLink";
@@ -127,6 +129,31 @@ function toDraft(entry: ResolvedCheatSheetEntry): EditorDraft {
     deckType: entry.deckType ?? "",
     handTraps: structuredClone(entry.handTraps),
   };
+}
+
+function renderCardLinkedText(segments: readonly CardLinkTextSegment[]) {
+  return segments.map((seg) => {
+    if (seg.type === "text") {
+      return <Fragment key={`t-${seg.start}`}>{seg.text}</Fragment>;
+    }
+    return (
+      <a
+        key={`c-${seg.start}-${seg.link.keyword}`}
+        href={seg.link.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={
+          seg.link.isDirectDetail
+            ? `遊戯王ニューロンで「${seg.link.keyword}」の詳細を開く`
+            : `遊戯王ニューロンで「${seg.link.keyword}」を検索`
+        }
+        className="mx-0.5 inline-flex items-baseline gap-0.5 rounded border border-primary/30 bg-primary/10 px-1 font-medium text-foreground transition-colors hover:border-primary hover:bg-primary/20 hover:text-primary"
+      >
+        {seg.text}
+        <ExternalLink className="h-2.5 w-2.5 shrink-0 self-center opacity-60" />
+      </a>
+    );
+  });
 }
 
 interface CheatSheetViewProps {
@@ -232,6 +259,15 @@ export function CheatSheetView({
   const existingSignatureCards = useMemo(
     () => (draft ? parseUniqueListInput(draft.signatureCardsText) : []),
     [draft],
+  );
+
+  const tokenizeCardLinks = useMemo(
+    () =>
+      createCardLinkTokenizer({
+        cidMap: NEURON_CID_MAP,
+        signatureCards: selectedEntry?.signatureCards ?? [],
+      }),
+    [selectedEntry?.signatureCards],
   );
 
   useEffect(() => {
@@ -1068,7 +1104,9 @@ export function CheatSheetView({
               <CardContent className="space-y-6">
                 {selectedEntry.summary && (
                   <div className="rounded-md border border-border/80 bg-secondary/40 p-3.5 text-sm leading-relaxed">
-                    {selectedEntry.summary}
+                    {renderCardLinkedText(
+                      tokenizeCardLinks(selectedEntry.summary),
+                    )}
                   </div>
                 )}
 
@@ -1208,7 +1246,11 @@ export function CheatSheetView({
                               </Badge>
                             </div>
                             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                              {ht.target || "未記入（編集から書けます）"}
+                              {ht.target
+                                ? renderCardLinkedText(
+                                    tokenizeCardLinks(ht.target),
+                                  )
+                                : "未記入（編集から書けます）"}
                             </p>
                           </div>
                         );
