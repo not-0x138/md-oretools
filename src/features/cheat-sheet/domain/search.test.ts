@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_CHEAT_SHEET_TEMPLATES } from "../data/defaultTemplates";
+import { HAND_TRAP_CATALOG } from "../data/handTrapCatalog";
 import {
   createBlankCheatSheetEntry,
   filterAndSortHandTraps,
@@ -12,7 +13,6 @@ import {
 import {
   type CheatSheetEntry,
   cheatSheetEntrySchema,
-  HAND_TRAP_CATALOG,
   type HandTrapMemo,
   type ResolvedCheatSheetEntry,
   STANDARD_HAND_TRAPS,
@@ -237,6 +237,19 @@ describe("filterCheatSheetByTier", () => {
   it("top 指定時は Tier1 と Tier2 のみを返す", () => {
     const res = filterCheatSheetByTier(wrapped, "top");
     expect(res.map((r) => r.entry.id)).toEqual(["1", "2"]);
+  });
+
+  it("all / tier3 / tier4 / tier5 指定時は対応するランクのテーマのみを返す", () => {
+    expect(filterCheatSheetByTier(wrapped, "all")).toHaveLength(6);
+    expect(
+      filterCheatSheetByTier(wrapped, "tier3").map((r) => r.entry.id),
+    ).toEqual(["3"]);
+    expect(
+      filterCheatSheetByTier(wrapped, "tier4").map((r) => r.entry.id),
+    ).toEqual(["4"]);
+    expect(
+      filterCheatSheetByTier(wrapped, "tier5").map((r) => r.entry.id),
+    ).toEqual(["5"]);
   });
 
   it("custom 指定時は編集済みと自作テーマのみを返す", () => {

@@ -42,7 +42,8 @@ node scripts/check-meta-updates.mjs
 
 更新内容に応じて以下のファイルを編集する（`TEMPLATE_TIMESTAMP` も更新日に揃える）。
 
-- 手札誘発定義・カタログ: `src/features/cheat-sheet/domain/types.ts`
+- 手札誘発定義・型: `src/features/cheat-sheet/domain/types.ts`
+- 手札誘発カタログ: `src/features/cheat-sheet/data/handTrapCatalog.ts`
 - Tier 1〜Tier 3 テーマ: `src/features/cheat-sheet/data/templatesTopTier.ts`
 - Tier 4 ＋ Tier 5 前半: `src/features/cheat-sheet/data/templatesMidTier.ts`
 - Tier 5 後半 ＋ 定番テーマ: `src/features/cheat-sheet/data/templatesClassicTier.ts`

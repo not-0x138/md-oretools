@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useTransientMessage } from "@/shared/lib/useTransientMessage";
+import { HAND_TRAP_CATALOG } from "../data/handTrapCatalog";
 import {
   filterAndSortHandTraps,
   filterCheatSheetByTier,
@@ -36,7 +37,6 @@ import {
   type CheatSheetEntry,
   type CheatSheetTier,
   cheatSheetTierSchema,
-  HAND_TRAP_CATALOG,
   type HandTrapCatalogItem,
   type HandTrapMemo,
   type HandTrapPriority,

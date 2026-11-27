@@ -22,7 +22,7 @@ const TEMPLATE_FILES = [
   "src/features/cheat-sheet/data/templatesMidTier.ts",
   "src/features/cheat-sheet/data/templatesClassicTier.ts",
 ];
-const TYPES_FILE = "src/features/cheat-sheet/domain/types.ts";
+const CATALOG_FILE = "src/features/cheat-sheet/data/handTrapCatalog.ts";
 
 const TIER_LABELS = {
   tier1: "Tier 1",
@@ -76,10 +76,10 @@ function loadLocalTemplates() {
 }
 
 /**
- * types.ts から HAND_TRAP_CATALOG のラベル・短縮名を読み取る。
+ * handTrapCatalog.ts から HAND_TRAP_CATALOG のラベル・短縮名を読み取る。
  */
 function loadLocalHandTraps() {
-  const content = fs.readFileSync(path.join(ROOT_DIR, TYPES_FILE), "utf8");
+  const content = fs.readFileSync(path.join(ROOT_DIR, CATALOG_FILE), "utf8");
   const start = content.indexOf("export const HAND_TRAP_CATALOG");
   const end = content.indexOf("];", start);
   const section = start >= 0 && end > start ? content.slice(start, end) : "";
