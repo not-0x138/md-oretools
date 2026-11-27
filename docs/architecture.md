@@ -67,7 +67,7 @@ flowchart LR
 
 ---
 
-## 3. リアルタイム連携シーケンス（Phase 3 想定）
+## 3. リアルタイム連携シーケンス（Phase 3 実装済み）
 
 画面認識エンジンから誘発カンペ・戦績トラッカーへの連携フローです。
 
@@ -82,17 +82,18 @@ sequenceDiagram
 
     User->>Cap: 画面共有開始 (getDisplayMedia)
     loop 定期フレーム解析 (ROI)
-        Cap->>Cap: ROI 切り出し & OCR / 画像判定
+        Cap->>Cap: ROI 切り出し & 前処理 & OCR
     end
     Cap-->>App: コイントス / 先攻後攻 検知
     App->>Track: 進行中の対戦セッションに自動セット
 
-    Cap-->>App: カード名 OCR → 汎用/自デッキ除外 → 相手テーマ類推 (累積スコア)
+    Cap-->>App: カード名 OCR → 汎用/自デッキ一致テーマ除外 → 相手テーマ類推 (累積スコア)
     App->>Cheat: 該当テーマの誘発カンペへ自動切替
     App->>Track: 相手デッキ候補を自動入力（手動補正可）
 
-    Cap-->>App: VICTORY / DEFEAT 検知
-    App->>Track: 仮確定バナーを表示（ワンクリック修正・確定 / 次戦開始で自動確定）
+    Cap-->>App: VICTORY / DEFEAT / 降参 検知
+    App->>User: 登録確認ダイアログを表示（内容確認・補正 / 「いいえ」で手動編集へ復帰）
+    User->>Track: 「はい」で対戦ログ確定
     Track->>DB: 対戦ログ保存
 ```
 
@@ -108,28 +109,28 @@ sequenceDiagram
   - IndexedDB（Dexie.js）の `version(n)` を用いて段階的にマイグレーションを定義する。
   - JSON エクスポート共通エンベロープ（`src/shared/schemas/backup.ts`）に `schemaVersion`・`exportedAt` を持たせ、現行バージョンより未来の未対応スキーマは明示的に拒否する。各 feature のデータスキーマを集約した完全スキーマは `src/app/` 層で `createBackupSchema()` により合成する。
   - JSON インポート時は **「全置換（上書き）」** と **「マージ（ID ベースで追加・更新）」** を選択可能にする。
-- **ストレージ消失・競合対策（Phase 2 導入）**:
+- **ストレージ消失・競合対策**:
   - `navigator.storage.persist()` を要求し、ブラウザの自動ストレージ追い出しを緩和する。
   - オリジン単位でデータが分離されるため（`*.pages.dev`・PR プレビュー・独自ドメイン間で非共有）、定期的な JSON バックアップ導線を UI に設ける。
   - 複数タブ同時起動時の Dexie スキーマ更新に備え、`versionchange` イベントのハンドリングを実装する。
-- **PWA 対応（Phase 2 以降で後付け）**:
+- **PWA 対応**:
   - `vite-plugin-pwa` をビルド外側に追加するのみで完結させ、アプリ内部設計には影響させない。
-  - Phase 3 の Tesseract.js 学習データ（大容量）はプリキャッシュ対象外とし、ランタイムキャッシュまたはオンデマンド取得とする。
+  - Tesseract.js の学習データ（大容量）はプリキャッシュ対象外とし、ランタイム取得とする。
 
 ---
 
-## 5. Phase 2 / 3 に向けた技術リスクと対策方針
+## 5. 技術リスクと現行対策・今後の検討事項
 
-### テスト基盤拡張（Phase 2 以降）
+### テスト基盤
 
-- 現行の Vitest 既定環境は `node`（高速な純粋関数テスト向け）。
-- IndexedDB / DOM / Canvas をテストするファイルでは `// @vitest-environment jsdom`（または `happy-dom`）と `fake-indexeddb` をファイル単位で導入する。
+- Vitest 既定環境は `node`（高速な純粋関数テスト向け）。
+- IndexedDB / DOM / Canvas をテストするファイルが必要になった場合は `// @vitest-environment jsdom`（または `happy-dom`）と `fake-indexeddb` をファイル単位で導入する方針とする。
 
-### 画面認識・OCR の技術リスク（Phase 3）
+### 画面認識・OCR の技術リスクと対策
 
-- **バックグラウンド throttling 対策**: ゲーム中にアプリタブが非表示になると `setInterval` / `requestAnimationFrame` が制限される。サブモニター表示や **PWA 独立ウィンドウ（または Document PiP）＋ Web Worker / `requestVideoFrameCallback`** を前提に設計する。
-- **キャプチャ環境と解像度非依存**: 排他フルスクリーン環境では黒画面になるケースがあるため、マスターデュエル側はボーダーレスウィンドウ推奨とする。ROI 座標はピクセル固定ではなく **16:9 をデフォルトプリセットとした比率（相対座標 `0.0〜1.0`）** で保持し、UI 上で微調整可能にする。対応ブラウザは Chromium 系（Chrome / Edge）を主対象とする。
-- **Tesseract.js のアセット配信**: 日本語 UI 前提で `jpn` 言語データを使用する。既定の外部 CDN（jsDelivr）取得はオフライン方針・CSP と競合するため、自前ホスト（`workerPath` / `corePath` / `langPath`）を検討する。Cloudflare Pages の 1 ファイル 25MiB 上限を超えない軽量版言語データ（`fast` モデル等）を選定し、前処理（拡大・コントラスト強調・二値化）＋信頼度閾値＋累積スコア＋手動補正 UI で精度を補完する。
+- **バックグラウンド throttling 対策**: ゲーム中にアプリタブが非表示になると `setTimeout` が制限される。現行実装は `setTimeout` ベースの定期解析であり、サブモニター表示または **PWA 独立ウィンドウでの前面表示** を前提とする（タブ裏実行の安定化が必要な場合は `requestVideoFrameCallback` / Web Worker タイマー / Document PiP の導入を検討）。
+- **キャプチャ環境と解像度非依存**: 排他フルスクリーン環境では黒画面になるケースがあるため、マスターデュエル側はボーダーレスウィンドウ推奨とする。ROI 座標はピクセル固定ではなく **16:9 実測値ベースの比率（相対座標 `0.0〜1.0`）** で保持し、UI 上で微調整可能にする。対応ブラウザは Chromium 系（Chrome / Edge）を主対象とする。
+- **Tesseract.js のアセット配信と精度対策**: 日本語 UI 前提で `jpn` 言語データ（`OEM.LSTM_ONLY` / `PSM.SINGLE_LINE`）を使用し、Canvas 前処理（2倍拡大・白余白パディング・明文字の反転抽出）＋信頼度閾値＋累積スコア＋確認ダイアログでの手動補正 UI で精度を補完している。現行は `tesseract.js` 標準の CDN 取得を利用しており、完全オフライン動作や厳格な CSP が必要になった場合は Cloudflare Pages の 1 ファイル 25MiB 上限内に収まる軽量版学習データ（`fast` モデル等）の自前ホスト（`workerPath` / `corePath` / `langPath`）を検討する。
 - **カード名辞書データ**: 公式画像・アセットは一切使用せず、カード名・テーマ対応辞書はユーザー編集可能なローカルデータ（初期テンプレートのみ同梱）として管理する。
 
 ---
