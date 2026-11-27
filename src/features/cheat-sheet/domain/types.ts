@@ -6,19 +6,226 @@ export interface StandardHandTrapDef {
   shortLabel: string;
 }
 
+export type HandTrapTier = "SS" | "S" | "A" | "B" | "meta";
+
+export interface HandTrapCatalogItem extends StandardHandTrapDef {
+  tier: HandTrapTier;
+  role: string;
+  isStandard: boolean;
+}
+
+/**
+ * 全テーマに標準枠として表示する主要手札誘発（9種・現行リミットレギュレーション準拠）。
+ * 既存ユーザーの編集データ互換性を保つため、既存の id は変更しない。
+ */
 export const STANDARD_HAND_TRAPS: readonly StandardHandTrapDef[] = [
   { id: "urara", label: "灰流うらら", shortLabel: "うらら" },
   { id: "maxx-c", label: "増殖するG", shortLabel: "増G" },
+  { id: "fuwalos", label: "マルチャミー・フワロス", shortLabel: "フワロス" },
   {
     id: "imperm-veiler",
     label: "無限泡影 / エフェクト・ヴェーラー",
     shortLabel: "泡影/ヴェーラー",
   },
+  { id: "impulse", label: "霊王の波動", shortLabel: "インパルス" },
+  { id: "ogre", label: "幽鬼うさぎ", shortLabel: "うさぎ" },
   { id: "belle", label: "屋敷わらし", shortLabel: "わらし" },
   { id: "nibiru", label: "原始生命態ニビル", shortLabel: "ニビル" },
-  { id: "called-by", label: "墓穴の指名者", shortLabel: "墓穴" },
   { id: "droll", label: "ドロール＆ロックバード", shortLabel: "ドロバ" },
 ];
+
+/**
+ * 環境で採用される主な手札誘発カタログ（編集時のワンクリック追加・ガイド用）。
+ */
+export const HAND_TRAP_CATALOG: readonly HandTrapCatalogItem[] = [
+  {
+    id: "urara",
+    label: "灰流うらら",
+    shortLabel: "うらら",
+    tier: "SS",
+    role: "デッキからのサーチ・リクルート・墓地送り無効",
+    isStandard: true,
+  },
+  {
+    id: "maxx-c",
+    label: "増殖するG",
+    shortLabel: "増G",
+    tier: "SS",
+    role: "相手の特殊召喚ごとに1ドロー",
+    isStandard: true,
+  },
+  {
+    id: "impulse",
+    label: "霊王の波動",
+    shortLabel: "インパルス",
+    tier: "SS",
+    role: "特殊召喚を含む効果を無効",
+    isStandard: true,
+  },
+  {
+    id: "imperm-veiler",
+    label: "無限泡影 / エフェクト・ヴェーラー",
+    shortLabel: "泡影/ヴェーラー",
+    tier: "S",
+    role: "場のモンスター効果を無効",
+    isStandard: true,
+  },
+  {
+    id: "ogre",
+    label: "幽鬼うさぎ",
+    shortLabel: "うさぎ",
+    tier: "S",
+    role: "効果を発動した場のカードを破壊",
+    isStandard: true,
+  },
+  {
+    id: "mourner",
+    label: "朔夜しぐれ",
+    shortLabel: "しぐれ",
+    tier: "S",
+    role: "特殊召喚されたモンスター効果を無効",
+    isStandard: false,
+  },
+  {
+    id: "harmony-dragon",
+    label: "調和ノ天救竜",
+    shortLabel: "天救竜",
+    tier: "S",
+    role: "シンクロ展開と連動する妨害",
+    isStandard: false,
+  },
+  {
+    id: "fuwalos",
+    label: "マルチャミー・フワロス",
+    shortLabel: "フワロス",
+    tier: "A",
+    role: "デッキ・EXからの特殊召喚でドロー",
+    isStandard: true,
+  },
+  {
+    id: "droll",
+    label: "ドロール＆ロックバード",
+    shortLabel: "ドロバ",
+    tier: "A",
+    role: "そのターンの追加サーチ・ドローを封鎖",
+    isStandard: true,
+  },
+  {
+    id: "purge",
+    label: "聖王の粉砕",
+    shortLabel: "パージ",
+    tier: "A",
+    role: "デッキから手札に加える効果を無効",
+    isStandard: false,
+  },
+  {
+    id: "gamma",
+    label: "PSYフレームギア・γ",
+    shortLabel: "γ",
+    tier: "A",
+    role: "相手モンスター効果を無効にして破壊",
+    isStandard: false,
+  },
+  {
+    id: "nibiru",
+    label: "原始生命態ニビル",
+    shortLabel: "ニビル",
+    tier: "B",
+    role: "5体以上展開した盤面を一掃",
+    isStandard: true,
+  },
+  {
+    id: "belle",
+    label: "屋敷わらし",
+    shortLabel: "わらし",
+    tier: "B",
+    role: "墓地からの蘇生・回収・除外を無効",
+    isStandard: true,
+  },
+  {
+    id: "purulia",
+    label: "マルチャミー・プルリア",
+    shortLabel: "プルリア",
+    tier: "B",
+    role: "手札からの召喚・特殊召喚でドロー",
+    isStandard: false,
+  },
+  {
+    id: "spark",
+    label: "霆王の閃光",
+    shortLabel: "スパーク",
+    tier: "B",
+    role: "相手のモンスターを除外",
+    isStandard: false,
+  },
+  {
+    id: "lancea",
+    label: "アーティファクト－ロンギヌス",
+    shortLabel: "ロンギヌス",
+    tier: "meta",
+    role: "そのターンのカード除外を封鎖",
+    isStandard: false,
+  },
+  {
+    id: "bystial",
+    label: "深淵の獣（ビーステッド）",
+    shortLabel: "ビーステッド",
+    tier: "meta",
+    role: "墓地の光・闇モンスターを除外して展開",
+    isStandard: false,
+  },
+  {
+    id: "dd-crow",
+    label: "D.D.クロウ",
+    shortLabel: "クロウ",
+    tier: "meta",
+    role: "相手墓地のカードをフリーチェーン除外",
+    isStandard: false,
+  },
+  {
+    id: "skull-meister",
+    label: "スカル・マイスター",
+    shortLabel: "マイスター",
+    tier: "meta",
+    role: "墓地で発動したカードの効果を無効",
+    isStandard: false,
+  },
+  {
+    id: "red-reboot",
+    label: "レッド・リブート",
+    shortLabel: "リブート",
+    tier: "meta",
+    role: "罠の発動を無効にしそのターンの罠を封鎖",
+    isStandard: false,
+  },
+  {
+    id: "meowls",
+    label: "マルチャミー・ニャルス",
+    shortLabel: "ニャルス",
+    tier: "meta",
+    role: "墓地・除外からの特殊召喚でドロー",
+    isStandard: false,
+  },
+];
+
+export const cheatSheetTierSchema = z.enum([
+  "tier1",
+  "tier2",
+  "tier3",
+  "tier4",
+  "tier5",
+  "other",
+]);
+export type CheatSheetTier = z.infer<typeof cheatSheetTierSchema>;
+
+export const CHEAT_SHEET_TIER_LABEL: Record<CheatSheetTier, string> = {
+  tier1: "Tier 1",
+  tier2: "Tier 2",
+  tier3: "Tier 3",
+  tier4: "Tier 4",
+  tier5: "Tier 5",
+  other: "その他",
+};
 
 export const handTrapPrioritySchema = z.enum(["high", "medium", "low"]);
 export type HandTrapPriority = z.infer<typeof handTrapPrioritySchema>;
@@ -39,6 +246,9 @@ export const cheatSheetEntrySchema = z.object({
   signatureCards: z.array(z.string()),
   summary: z.string(),
   handTraps: z.array(handTrapMemoSchema),
+  tier: cheatSheetTierSchema.optional(),
+  deckType: z.string().optional(),
+  summonMethods: z.array(z.string()).optional(),
   updatedAt: z.iso.datetime(),
 });
 export type CheatSheetEntry = z.infer<typeof cheatSheetEntrySchema>;
@@ -53,3 +263,11 @@ export interface SearchMatchResult {
   entry: ResolvedCheatSheetEntry;
   matchedField: "all" | "theme" | "alias" | "card" | "memo";
 }
+
+export type TierFilterValue =
+  | "all"
+  | "top"
+  | "tier3"
+  | "tier4"
+  | "tier5"
+  | "custom";
