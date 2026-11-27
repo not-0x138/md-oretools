@@ -41,6 +41,7 @@ function createMemoryTables(): AppBackupTables {
     cheatSheetOverrides: createMemoryTable(),
     playerDecks: createMemoryTable(),
     duelRecords: createMemoryTable(),
+    captureSettings: createMemoryTable(),
   };
 }
 
@@ -103,6 +104,7 @@ function createSampleBackup(): AppBackup {
           updatedAt: "2026-11-26T10:30:00.000Z",
         },
       ],
+      captureSettings: [],
     },
     new Date("2026-11-26T12:00:00.000Z"),
   );
@@ -173,6 +175,7 @@ describe("exportAllAppData & importAppData", () => {
         },
       ],
       duelRecords: [],
+      captureSettings: [],
     });
 
     await importAppData(incoming, "merge", tables);
@@ -195,6 +198,7 @@ describe("exportAllAppData & importAppData", () => {
       cheatSheetOverrides: [],
       playerDecks: [],
       duelRecords: [],
+      captureSettings: [],
     });
 
     const summary = await importAppData(emptyBackup, "replace", tables);
@@ -205,6 +209,7 @@ describe("exportAllAppData & importAppData", () => {
       cheatSheetOverrides: 0,
       playerDecks: 0,
       duelRecords: 0,
+      captureSettings: 0,
     });
     expect(exported.data.playerDecks).toHaveLength(0);
     expect(exported.data.duelRecords).toHaveLength(0);

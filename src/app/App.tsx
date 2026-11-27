@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   CheatSheetView,
   cheatSheetEntrySchema,
   DEFAULT_CHEAT_SHEET_TEMPLATES,
 } from "@/features/cheat-sheet";
+import {
+  ScreenCaptureView,
+  type ThemeDictionaryItem,
+} from "@/features/screen-capture";
 import {
   createInitialSimulatorConfig,
   HandSimulatorView,
@@ -29,6 +25,7 @@ import {
   saveUiPreferences,
 } from "@/shared/lib/uiPreferences";
 import { BackupDialog } from "./BackupDialog";
+import { DuelModeView } from "./DuelModeView";
 import { PORTAL_NAV_ITEMS, PortalShell, type ToolId } from "./PortalShell";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -53,29 +50,13 @@ function resolveToolId(raw: string): ToolId {
   return "simulator";
 }
 
-function UpcomingToolPlaceholder({ toolId }: { toolId: ToolId }) {
-  const item = PORTAL_NAV_ITEMS.find((nav) => nav.id === toolId);
-  if (!item) {
-    return null;
-  }
-  const Icon = item.icon;
-  return (
-    <Card className="mx-auto max-w-2xl">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <Icon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">{item.label}</CardTitle>
-          </div>
-          <Badge variant="secondary">準備中</Badge>
-        </div>
-        <CardDescription>この機能は現在準備中です。</CardDescription>
-      </CardHeader>
-      <CardContent className="text-sm text-muted-foreground">
-        いまは「初手確率計算」「誘発カンペ」「戦績記録」を利用できます。
-      </CardContent>
-    </Card>
-  );
+function toDefaultDictionary(): ThemeDictionaryItem[] {
+  return DEFAULT_CHEAT_SHEET_TEMPLATES.map((entry) => ({
+    id: entry.id,
+    themeName: entry.themeName,
+    aliases: entry.aliases,
+    signatureCards: entry.signatureCards,
+  }));
 }
 
 export function App() {
@@ -97,9 +78,13 @@ export function App() {
     useState<StoragePersistenceStatus>("unsupported");
   const [installPrompt, setInstallPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
-  const [opponentThemeSuggestions, setOpponentThemeSuggestions] = useState<
-    string[]
-  >(() => DEFAULT_CHEAT_SHEET_TEMPLATES.map((entry) => entry.themeName));
+  const [themeDictionary, setThemeDictionary] = useState<ThemeDictionaryItem[]>(
+    () => toDefaultDictionary(),
+  );
+
+  const opponentThemeSuggestions = themeDictionary.map(
+    (entry) => entry.themeName,
+  );
 
   useEffect(() => {
     saveUiPreferences({
@@ -128,28 +113,39 @@ export function App() {
     };
   }, []);
 
-  const refreshOpponentThemeSuggestions = useCallback(async () => {
+  const refreshThemeDictionary = useCallback(async () => {
     try {
       const res = await cheatSheetOverrideRepo.list();
-      const names = new Set<string>(
-        DEFAULT_CHEAT_SHEET_TEMPLATES.map((entry) => entry.themeName),
-      );
-      for (const item of res.items) {
-        names.add(item.themeName);
+      const map = new Map<string, ThemeDictionaryItem>();
+      for (const entry of DEFAULT_CHEAT_SHEET_TEMPLATES) {
+        map.set(entry.id, {
+          id: entry.id,
+          themeName: entry.themeName,
+          aliases: entry.aliases,
+          signatureCards: entry.signatureCards,
+        });
       }
-      setOpponentThemeSuggestions(Array.from(names));
+      for (const item of res.items) {
+        map.set(item.id, {
+          id: item.id,
+          themeName: item.themeName,
+          aliases: item.aliases,
+          signatureCards: item.signatureCards,
+        });
+      }
+      setThemeDictionary(Array.from(map.values()));
     } catch {
       // 読み込み失敗時はテンプレート候補をそのまま維持する
     }
   }, []);
 
-  // features 間の直接参照を避けるため、誘発カンペのテーマ候補一覧は app 層で集約して戦績記録へ渡す
+  // features 間の直接参照を避けるため、誘発カンペのテーマ辞書は app 層で集約して各機能へ渡す
   useEffect(() => {
-    if (activeTool !== "tracker") {
+    if (activeTool !== "tracker" && activeTool !== "screen-capture") {
       return;
     }
-    void refreshOpponentThemeSuggestions();
-  }, [activeTool, refreshOpponentThemeSuggestions]);
+    void refreshThemeDictionary();
+  }, [activeTool, refreshThemeDictionary]);
 
   const handleInstallApp = useCallback(async () => {
     if (!installPrompt) {
@@ -168,7 +164,7 @@ export function App() {
         return;
       }
       if (
-        activeTool === "cheat-sheet" &&
+        (activeTool === "cheat-sheet" || activeTool === "duel-mode") &&
         isCheatSheetEditing &&
         !window.confirm(
           "誘発カンペの編集内容が保存されていません。変更を破棄して移動しますか？",
@@ -205,8 +201,20 @@ export function App() {
             opponentThemeSuggestions={opponentThemeSuggestions}
           />
         );
-      default:
-        return <UpcomingToolPlaceholder toolId={activeTool} />;
+      case "screen-capture":
+        return (
+          <ScreenCaptureView
+            key={`screen-capture-${dataVersion}`}
+            dictionary={themeDictionary}
+          />
+        );
+      case "duel-mode":
+        return (
+          <DuelModeView
+            key={`duel-mode-${dataVersion}`}
+            onEditingStateChange={setIsCheatSheetEditing}
+          />
+        );
     }
   };
 
@@ -231,7 +239,7 @@ export function App() {
         onClose={() => setBackupOpen(false)}
         onRestored={() => {
           setDataVersion((prev) => prev + 1);
-          void refreshOpponentThemeSuggestions();
+          void refreshThemeDictionary();
         }}
       />
     </>

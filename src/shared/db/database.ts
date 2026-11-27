@@ -22,6 +22,7 @@ export class MdOretoolsDatabase extends Dexie {
   cheatSheetOverrides!: EntityTable<StoredRecord, "id">;
   playerDecks!: EntityTable<StoredRecord, "id">;
   duelRecords!: EntityTable<StoredRecord, "id">;
+  captureSettings!: EntityTable<StoredRecord, "id">;
 
   private readonly noticeListeners = new Set<DatabaseNoticeListener>();
 
@@ -38,6 +39,14 @@ export class MdOretoolsDatabase extends Dexie {
       cheatSheetOverrides: "id, updatedAt",
       playerDecks: "id, updatedAt",
       duelRecords: "id, updatedAt",
+    });
+
+    this.version(3).stores({
+      simulatorPresets: "id, updatedAt",
+      cheatSheetOverrides: "id, updatedAt",
+      playerDecks: "id, updatedAt",
+      duelRecords: "id, updatedAt",
+      captureSettings: "id, updatedAt",
     });
 
     // 複数タブ同時起動時に他タブでスキーマバージョンが上がった場合、

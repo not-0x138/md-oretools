@@ -77,9 +77,13 @@ function toDraft(entry: ResolvedCheatSheetEntry): EditorDraft {
 
 interface CheatSheetViewProps {
   onEditingStateChange?: (isEditing: boolean) => void;
+  externalSelectedThemeId?: string | null;
 }
 
-export function CheatSheetView({ onEditingStateChange }: CheatSheetViewProps) {
+export function CheatSheetView({
+  onEditingStateChange,
+  externalSelectedThemeId,
+}: CheatSheetViewProps) {
   const {
     entries,
     isLoading,
@@ -105,6 +109,19 @@ export function CheatSheetView({ onEditingStateChange }: CheatSheetViewProps) {
       onEditingStateChange?.(false);
     };
   }, [isEditing, onEditingStateChange]);
+
+  useEffect(() => {
+    if (!externalSelectedThemeId || isEditing) {
+      return;
+    }
+    const exists = entries.some(
+      (entry) => entry.id === externalSelectedThemeId,
+    );
+    if (exists) {
+      setSelectedId(externalSelectedThemeId);
+      setQuery("");
+    }
+  }, [entries, externalSelectedThemeId, isEditing]);
 
   const searchResults = useMemo(
     () => searchCheatSheetEntries(entries, query),
